@@ -148,6 +148,8 @@ static inline bool xnn_is_bf16_compatible_config(
     const struct xnn_hardware_config* hardware_config) {
 #if XNN_ARCH_X86_64
   return (hardware_config->arch_flags & xnn_arch_x86_avx512bf16);
+#elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  return (hardware_config->arch_flags & xnn_arch_riscv_vector);
 #else
   return false;
 #endif
