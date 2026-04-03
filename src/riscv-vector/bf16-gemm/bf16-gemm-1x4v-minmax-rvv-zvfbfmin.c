@@ -9,7 +9,8 @@
 //   [fp32 bias × NR]          -- NR * sizeof(float) bytes
 //   [bf16 weights × NR]       -- NR * sizeof(uint16_t) bytes, per KC step
 //
-// Requirements: Zvfbfmin (vfwcvtbf16.f.f.v, vfncvtbf16.f.f.w)
+// Zvfbfmin instructions emitted via inline asm (.option arch, +zvfbfmin)
+// to bypass missing compiler intrinsic support in GCC 14.x.
 
 #include <assert.h>
 #include <stddef.h>
@@ -80,9 +81,17 @@ void xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
       float va0;
       memcpy(&va0, &va0_bits, sizeof(float));
 
-      // B: load NR bf16 weights, widen to fp32 (Zvfbfmin).
+      // B: load NR bf16 weights, widen to fp32 (Zvfbfmin via inline asm).
       vuint16m2_t vb_u16 = __riscv_vle16_v_u16m2(w, vl);
-      vfloat32m4_t vb = __riscv_vfwcvtbf16_f_f_v_f32m4(vb_u16, vl);
+      vfloat32m4_t vb;
+      asm volatile(
+          ".option push\n\t"
+          ".option arch, +zvfbfmin\n\t"
+          "vfwcvtbf16.f.f.v %[dst], %[src]\n\t"
+          ".option pop\n\t"
+          : [dst] "=&vr"(vb)
+          : [src] "vr"(vb_u16)
+      );
       w += nr;  // advance by NR bf16 elements
 
       vacc0 = __riscv_vfmacc_vf_f32m4(vacc0, va0, vb, vl);
@@ -98,10 +107,16 @@ void xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
     vacc0 = __riscv_vfmax_vf_f32m4(vacc0, vmin, vl);
     vacc0 = __riscv_vfmin_vf_f32m4(vacc0, vmax, vl);
 
-    // ------------------------------------------------------------------
-    // Narrow fp32 -> bf16 and store (Zvfbfmin).
-    // ------------------------------------------------------------------
-    vuint16m2_t vout0 = __riscv_vfncvtbf16_f_f_w_u16m2(vacc0, vl);
+    // Narrow fp32 -> bf16 and store (Zvfbfmin via inline asm).
+    vuint16m2_t vout0;
+    asm volatile(
+        ".option push\n\t"
+        ".option arch, +zvfbfmin\n\t"
+        "vfncvtbf16.f.f.w %[dst], %[src]\n\t"
+        ".option pop\n\t"
+        : [dst] "=&vr"(vout0)
+        : [src] "vr"(vacc0)
+    );
     __riscv_vse16_v_u16m2(c0, vout0, vl);
     c0 = (uint16_t*) ((uintptr_t) c0 + cn_stride);
 

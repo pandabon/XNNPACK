@@ -16,7 +16,8 @@
 //   [fp32 bias × NR]
 //   [bf16 weights × NR] per KC step
 //
-// Requirements: Zvfbfmin (vfwcvtbf16.f.f.v, vfncvtbf16.f.f.w)
+// Zvfbfmin instructions emitted via inline asm (.option arch, +zvfbfmin)
+// to bypass missing compiler intrinsic support in GCC 14.x.
 
 #include <assert.h>
 #include <stddef.h>
@@ -99,9 +100,17 @@ void xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin(
       uint32_t va2_bits = (uint32_t)(*a2k++) << 16; float va2; memcpy(&va2, &va2_bits, sizeof(float));
       uint32_t va3_bits = (uint32_t)(*a3k++) << 16; float va3; memcpy(&va3, &va3_bits, sizeof(float));
 
-      // B: load NR bf16 weights, widen to fp32 (Zvfbfmin).
+      // B: load NR bf16 weights, widen to fp32 (Zvfbfmin via inline asm).
       vuint16m2_t vb_u16 = __riscv_vle16_v_u16m2(w, vl);
-      vfloat32m4_t vb    = __riscv_vfwcvtbf16_f_f_v_f32m4(vb_u16, vl);
+      vfloat32m4_t vb;
+      asm volatile(
+          ".option push\n\t"
+          ".option arch, +zvfbfmin\n\t"
+          "vfwcvtbf16.f.f.v %[dst], %[src]\n\t"
+          ".option pop\n\t"
+          : [dst] "=&vr"(vb)
+          : [src] "vr"(vb_u16)
+      );
       w += nr;
 
       vacc0 = __riscv_vfmacc_vf_f32m4(vacc0, va0, vb, vl);
@@ -126,13 +135,21 @@ void xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin(
     vacc2 = __riscv_vfmin_vf_f32m4(vacc2, vmax, vl);
     vacc3 = __riscv_vfmin_vf_f32m4(vacc3, vmax, vl);
 
-    // ------------------------------------------------------------------
-    // Narrow fp32 -> bf16 and store (Zvfbfmin).
-    // ------------------------------------------------------------------
-    vuint16m2_t vout0 = __riscv_vfncvtbf16_f_f_w_u16m2(vacc0, vl);
-    vuint16m2_t vout1 = __riscv_vfncvtbf16_f_f_w_u16m2(vacc1, vl);
-    vuint16m2_t vout2 = __riscv_vfncvtbf16_f_f_w_u16m2(vacc2, vl);
-    vuint16m2_t vout3 = __riscv_vfncvtbf16_f_f_w_u16m2(vacc3, vl);
+    // Narrow fp32 -> bf16 and store (Zvfbfmin via inline asm).
+    vuint16m2_t vout0, vout1, vout2, vout3;
+    asm volatile(
+        ".option push\n\t"
+        ".option arch, +zvfbfmin\n\t"
+        "vfncvtbf16.f.f.w %[d0], %[s0]\n\t"
+        "vfncvtbf16.f.f.w %[d1], %[s1]\n\t"
+        "vfncvtbf16.f.f.w %[d2], %[s2]\n\t"
+        "vfncvtbf16.f.f.w %[d3], %[s3]\n\t"
+        ".option pop\n\t"
+        : [d0] "=&vr"(vout0), [d1] "=&vr"(vout1),
+          [d2] "=&vr"(vout2), [d3] "=&vr"(vout3)
+        : [s0] "vr"(vacc0), [s1] "vr"(vacc1),
+          [s2] "vr"(vacc2), [s3] "vr"(vacc3)
+    );
 
     __riscv_vse16_v_u16m2(c0, vout0, vl); c0 = (uint16_t*) ((uintptr_t) c0 + cn_stride);
     __riscv_vse16_v_u16m2(c1, vout1, vl); c1 = (uint16_t*) ((uintptr_t) c1 + cn_stride);
