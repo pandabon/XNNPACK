@@ -166,6 +166,7 @@ struct xnn_gemm_config {
   struct gemm_fused_ukernels relu;
   struct gemm_fused_ukernels linear;
   union {
+    xnn_init_bf16_minmax_params_fn bf16;
     xnn_init_f16_minmax_params_fn f16;
     xnn_init_f32_minmax_params_fn f32;
     xnn_init_f16_qc4w_minmax_params_fn f16_qc4w;
