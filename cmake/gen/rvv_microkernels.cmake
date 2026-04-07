@@ -22,6 +22,11 @@ SET(PROD_RVV_MICROKERNEL_SRCS
   src/f32-dwconv/gen/f32-dwconv-25p8vc-rvv.c
   src/f32-dwconv2d-chw/gen/f32-dwconv2d-chw-3x3p1-minmax-rvv-7x1v.c
   src/f32-dwconv2d-chw/gen/f32-dwconv2d-chw-3x3s2p1-minmax-rvv-2x2v.c
+  src/riscv-vector/x16-x32-packw/x16-x32-packw-x4v-gemm-goi-rvv-u8.c
+  src/riscv-vector/bf16-gemm/bf16-gemm-1x4v-minmax-rvv-zvfbfmin.c
+  src/riscv-vector/bf16-gemm/bf16-gemm-4x4v-minmax-rvv-zvfbfmin.c
+  src/riscv-vector/bf16-f32-gemm/bf16-f32-gemm-1x4v-minmax-rvv-zvfbfwma.c
+  src/riscv-vector/bf16-f32-gemm/bf16-f32-gemm-4x4v-minmax-rvv-zvfbfwma.c
   src/f32-gemm/gen/f32-gemm-1x4v-minmax-rvv.c
   src/f32-gemm/gen/f32-gemm-7x4v-minmax-rvv.c
   src/f32-igemm/gen/f32-igemm-1x4v-minmax-rvv.c

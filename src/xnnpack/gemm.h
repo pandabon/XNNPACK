@@ -81,6 +81,21 @@ DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_f32_gemm_minmax_ukernel_4x64c2__asm_amd64_avx512bf16_broadcast)
 DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_f32_gemm_minmax_ukernel_5x64c2__asm_amd64_avx512bf16_broadcast)
+// RVV Zvfbfmin: bf16 input + bf16 weights -> fp32 output (widen + fp32 vfmacc)
+DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin)
+DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin)
+// RVV Zvfbfwma: bf16 input + bf16 weights -> fp32 output via vfwmaccbf16.vf
+DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfwma)
+DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_gemm_minmax_ukernel_4x4v__rvv_zvfbfwma)
+// RVV Zvfbfa: bf16 input + bf16 weights -> fp32 output via vfwmacc.vf altfmt=1
+DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfa)
+DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_gemm_minmax_ukernel_4x4v__rvv_zvfbfa)
 
 #define DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(fn_name)              \
   void fn_name(size_t mr, size_t nc, size_t kc, const xnn_bfloat16* a,  \
@@ -140,6 +155,17 @@ DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_gemm_minmax_ukernel_4x4c8__neonbf16_bfmlal)
 DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_gemm_minmax_ukernel_5x4c8__neonbf16_bfmlal)
+
+// RVV Zvfbfmin kernels (bf16 in / bf16 out, widen + fp32 macc + narrow)
+DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin)
+DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin)
+// RVV Zvfbfa kernels (bf16 in / bf16 out, vfwmacc.vf altfmt=1 + narrow)
+DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfa)
+DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfa)
 
 #define DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(fn_name)             \
   void fn_name(size_t mr, size_t nc, size_t kc, const xnn_float16* a, \

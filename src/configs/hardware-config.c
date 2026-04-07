@@ -257,6 +257,11 @@ static void init_hardware_config(void) {
     /* There is no HWCAP for fp16 so disable by default */
     set_arch_flag(xnn_arch_riscv_vector_fp16_arith, false);
 
+    /* BF16 sub-extension flags (compile-time; no HWCAP available yet) */
+    set_arch_flag(xnn_arch_riscv_zvfbfmin, XNN_ENABLE_RISCV_ZVFBFMIN);
+    set_arch_flag(xnn_arch_riscv_zvfbfwma, XNN_ENABLE_RISCV_ZVFBFWMA);
+    set_arch_flag(xnn_arch_riscv_zvfbfa,   XNN_ENABLE_RISCV_ZVFBFA);
+
     if (use_riscv_vector) {
       uint32_t vlenb;
       size_t vl;

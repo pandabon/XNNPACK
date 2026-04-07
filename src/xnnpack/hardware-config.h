@@ -59,6 +59,9 @@ enum xnn_arch_flags {
 #elif XNN_ARCH_RISCV
   xnn_arch_riscv_vector = 1 << 0,
   xnn_arch_riscv_vector_fp16_arith = 1 << 1,
+  xnn_arch_riscv_zvfbfmin = 1 << 2,
+  xnn_arch_riscv_zvfbfwma = 1 << 3,
+  xnn_arch_riscv_zvfbfa   = 1 << 4,
 #elif XNN_ARCH_PPC64
   xnn_arch_vsx = 1 << 0,
   xnn_arch_vsx3 = 1 << 1,
@@ -148,6 +151,8 @@ static inline bool xnn_is_bf16_compatible_config(
     const struct xnn_hardware_config* hardware_config) {
 #if XNN_ARCH_X86_64
   return (hardware_config->arch_flags & xnn_arch_x86_avx512bf16);
+#elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  return (hardware_config->arch_flags & xnn_arch_riscv_zvfbfmin);
 #else
   return false;
 #endif
