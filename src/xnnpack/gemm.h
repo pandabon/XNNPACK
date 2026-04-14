@@ -152,6 +152,10 @@ DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin)
 DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin)
+DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfa)
+DECLARE_BF16_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfa)
 
 #define DECLARE_F16_GEMM_MINMAX_UKERNEL_FUNCTION(fn_name)             \
   void fn_name(size_t mr, size_t nc, size_t kc, const xnn_float16* a, \

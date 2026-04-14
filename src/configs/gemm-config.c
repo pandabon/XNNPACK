@@ -386,7 +386,16 @@ static void init_bf16_gemm_config(void) {
   assert(hardware_config != NULL);
   (void) hardware_config;
   if (hardware_config->arch_flags & xnn_arch_riscv_zvfbfa) {
-    // Reserved for Zvfbfa BF16 widening-FMA kernels (separate branch).
+    bf16_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(1)] =
+        XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfa);
+    bf16_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(4)] =
+        XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfa);
+    bf16_gemm_config.init.bf16 = xnn_init_bf16_minmax_scalar_params;
+    bf16_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn)
+        xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8;
+    bf16_gemm_config.mr = 4;
+    bf16_gemm_config.nr = hardware_config->vlenb;
+    bf16_gemm_config.log2_kr = 0;
   } else if (hardware_config->arch_flags & xnn_arch_riscv_zvfbfmin) {
     bf16_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(1)] =
         XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin);
