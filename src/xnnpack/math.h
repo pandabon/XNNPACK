@@ -599,6 +599,17 @@ XNN_INLINE static xnn_bfloat16 xnn_bfloat16_from_bits(uint16_t x) {
   return result;
 }
 
+// NaN-box a BF16 value into a 64-bit FP register for use as a Zvfbfa
+// scalar (.vf) operand. A sub-FLEN value in an F-register must have
+// its upper bits all-ones; otherwise the RISC-V spec requires the
+// BF16 canonical NaN to be substituted.
+XNN_INLINE static double xnn_nanbox_bf16(uint16_t v) {
+  uint64_t bits = UINT64_C(0xFFFFFFFFFFFF0000) | (uint64_t) v;
+  double d;
+  memcpy(&d, &bits, sizeof(d));
+  return d;
+}
+
 XNN_INLINE static xnn_float16 xnn_float16_zero() {
 #if XNN_HAVE_FLOAT16
   return (xnn_float16)0.0f;
