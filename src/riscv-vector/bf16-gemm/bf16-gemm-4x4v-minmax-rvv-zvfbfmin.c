@@ -106,10 +106,11 @@ void xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin(
       asm volatile(
           ".option push\n\t"
           ".option arch, +zvfbfmin\n\t"
+          "vsetvli zero, %[vl], e16, m2, ta, ma\n\t"
           "vfwcvtbf16.f.f.v %[dst], %[src]\n\t"
           ".option pop\n\t"
           : [dst] "=&vr"(vb)
-          : [src] "vr"(vb_u16)
+          : [src] "vr"(vb_u16), [vl] "r"(vl)
       );
       w += nr;
 
@@ -140,6 +141,7 @@ void xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin(
     asm volatile(
         ".option push\n\t"
         ".option arch, +zvfbfmin\n\t"
+        "vsetvli zero, %[vl], e16, m2, ta, ma\n\t"
         "vfncvtbf16.f.f.w %[d0], %[s0]\n\t"
         "vfncvtbf16.f.f.w %[d1], %[s1]\n\t"
         "vfncvtbf16.f.f.w %[d2], %[s2]\n\t"
@@ -148,7 +150,8 @@ void xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin(
         : [d0] "=&vr"(vout0), [d1] "=&vr"(vout1),
           [d2] "=&vr"(vout2), [d3] "=&vr"(vout3)
         : [s0] "vr"(vacc0), [s1] "vr"(vacc1),
-          [s2] "vr"(vacc2), [s3] "vr"(vacc3)
+          [s2] "vr"(vacc2), [s3] "vr"(vacc3),
+          [vl] "r"(vl)
     );
 
     __riscv_vse16_v_u16m2(c0, vout0, vl); c0 = (uint16_t*) ((uintptr_t) c0 + cn_stride);

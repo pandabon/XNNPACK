@@ -87,10 +87,11 @@ void xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
       asm volatile(
           ".option push\n\t"
           ".option arch, +zvfbfmin\n\t"
+          "vsetvli zero, %[vl], e16, m2, ta, ma\n\t"
           "vfwcvtbf16.f.f.v %[dst], %[src]\n\t"
           ".option pop\n\t"
           : [dst] "=&vr"(vb)
-          : [src] "vr"(vb_u16)
+          : [src] "vr"(vb_u16), [vl] "r"(vl)
       );
       w += nr;  // advance by NR bf16 elements
 
@@ -112,10 +113,11 @@ void xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
     asm volatile(
         ".option push\n\t"
         ".option arch, +zvfbfmin\n\t"
+        "vsetvli zero, %[vl], e16, m2, ta, ma\n\t"
         "vfncvtbf16.f.f.w %[dst], %[src]\n\t"
         ".option pop\n\t"
         : [dst] "=&vr"(vout0)
-        : [src] "vr"(vacc0)
+        : [src] "vr"(vacc0), [vl] "r"(vl)
     );
     __riscv_vse16_v_u16m2(c0, vout0, vl);
     c0 = (uint16_t*) ((uintptr_t) c0 + cn_stride);

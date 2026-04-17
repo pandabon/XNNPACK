@@ -4,29 +4,22 @@
 // LICENSE file in the root directory of this source tree.
 //
 // MR=1, NR=vsetvlmax_e32m4() bf16->f32 GEMM with minmax epilogue.
-// Tail-row handler for Saturn GENV256D128 (VLEN=256, Zvfbfa).
+// Tail-row handler for Saturn GENV256D128 (VLEN=256, Zvfbfmin).
 //
-// Uses vfwmaccbf16.vf (Zvfbfa): bf16 scalar x bf16 vector -> fp32 accumulate.
+// Zvfbfmin path: bf16 weights widened to fp32 via vfwcvtbf16.f.f.v;
+// bf16 activations widened to fp32 via bit-shift + memcpy;
+// FMA via base-V vfmacc.vf on fp32 accumulators.
 // Packed weight layout: [fp32 bias x NR][bf16 weights x NR per KC step]
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <riscv_vector.h>
 
 #include "src/xnnpack/gemm.h"
 #include "src/xnnpack/microparams.h"
-
-// NaN-box a bf16 value into a 64-bit FP register (RISC-V D extension).
-// Upper 48 bits must be all 1s; lower 16 bits hold the bf16 payload.
-// vfwmaccbf16.vf reads the lower 16 bits of rs1 as bf16.
-static inline double nanbox_bf16(uint16_t v) {
-  uint64_t bits = 0xFFFFFFFFFFFF0000ULL | (uint64_t)v;
-  double d;
-  __builtin_memcpy(&d, &bits, sizeof(d));
-  return d;
-}
 
 void xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
     size_t mr, size_t nc, size_t kc,
@@ -63,32 +56,29 @@ void xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
     size_t k = kc;
 
     do {
-      uint16_t raw_a0 = *a0k++;
+      // A: bf16 scalar -> fp32 via bit-shift (no Zvfbfmin required for scalar).
+      uint32_t va0_bits = (uint32_t)(*a0k++) << 16;
+      float va0;
+      memcpy(&va0, &va0_bits, sizeof(float));
 
-      // Load NR bf16 weights as u16m2 (LMUL=2 for widening source).
-      // This intrinsic emits vsetvli e16,m2; vle16.v so vtype becomes e16m2.
-      vuint16m2_t vb = __riscv_vle16_v_u16m2(wb, vl);
+      // B: load NR bf16 weights, widen to fp32 (Zvfbfmin via inline asm).
+      vuint16m2_t vb_u16 = __riscv_vle16_v_u16m2(wb, vl);
+      vfloat32m4_t vb;
+      asm volatile(
+          ".option push\n\t"
+          ".option arch, +zvfbfmin\n\t"
+          "vsetvli zero, %[vl], e16, m2, ta, ma\n\t"
+          "vfwcvtbf16.f.f.v %[d], %[s]\n\t"
+          ".option pop\n\t"
+          : [d] "=&vr"(vb)
+          : [s] "vr"(vb_u16), [vl] "r"(vl)
+      );
       wb += nr;
 
-      // NaN-box the bf16 scalar for vfwmaccbf16.vf rs1 (D-extension register).
-      double da0 = nanbox_bf16(raw_a0);
-
-      // vfwmaccbf16.vf vd, rs1, vs2:
-      //   vd[i]  (fp32, m4) += f32(rs1_bf16) * f32(vs2[i]_bf16)
-      // vtype is currently e16m2 (set by vle16_v_u16m2 above):
-      //   vs2 uses m2 (source LMUL), vd uses m4 (dest LMUL = 2x source).
-      asm volatile(
-          ".option arch, +zvfbfwma\n\t"
-          "vfwmaccbf16.vf %[acc], %[s0], %[b]\n\t"
-          : [acc] "+vr"(vacc0)
-          : [s0] "f"(da0), [b] "vr"(vb)
-      );
+      vacc0 = __riscv_vfmacc_vf_f32m4(vacc0, va0, vb, vl);
       k -= sizeof(uint16_t);
     } while (k != 0);
     w_ptr = (const xnn_bfloat16*)wb;
-
-    // Reset vtype to e32m4 for fp32 epilogue (was e16m2 after inner loop).
-    vl = __riscv_vsetvl_e32m4(vl);
 
     vacc0 = __riscv_vfmax_vf_f32m4(vacc0, vmin, vl);
     vacc0 = __riscv_vfmin_vf_f32m4(vacc0, vmax, vl);
