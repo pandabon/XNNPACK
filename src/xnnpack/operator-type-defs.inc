@@ -97,6 +97,8 @@ XNN_ENUM_ITEM(xnn_operator_type_dynamic_fully_connected_nc_pf16,
               "Dynamic Fully Connected (NC, PF16)")
 XNN_ENUM_ITEM(xnn_operator_type_dynamic_fully_connected_nc_pf32,
               "Dynamic Fully Connected (NC, PF32)")
+XNN_ENUM_ITEM(xnn_operator_type_fully_connected_nc_bf16,
+              "Fully Connected (NC, BF16)")
 XNN_ENUM_ITEM(xnn_operator_type_fully_connected_nc_bf16_f32,
               "Fully Connected (NC, BF16, F32)")
 XNN_ENUM_ITEM(xnn_operator_type_fully_connected_nc_f16,
