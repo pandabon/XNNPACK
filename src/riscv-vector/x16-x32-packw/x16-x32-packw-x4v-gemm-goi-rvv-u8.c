@@ -131,10 +131,10 @@ void xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8(
       }
 
       // Remaining KC rows one at a time.
-      vlmax = __riscv_vsetvlmax_e16m4();
+      vlmax = __riscv_vsetvlmax_e16m2();
       for (; k >= 1; k -= 1) {
-        vuint16m4_t v_w = __riscv_vlse16_v_u16m4(w0, kc_bstride, vlmax);
-        __riscv_vse16_v_u16m4(out0, v_w, vlmax);
+        vuint16m2_t v_w = __riscv_vlse16_v_u16m2(w0, kc_bstride, vlmax);
+        __riscv_vse16_v_u16m2(out0, v_w, vlmax);
         out0 += vlmax;
         w0 += 1;
       }
@@ -177,6 +177,7 @@ void xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8(
         uint16_t* out7 = out6 + nr;
 
         const uint16_t* w_ptr = w0;
+        unsigned char remaining_blocks = 2;
         size_t remaining_n = n;
         do {
           size_t chunk_vl = XNN_LIKELY(remaining_n >= vlmax)
@@ -194,8 +195,9 @@ void xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8(
           __riscv_vse16_v_u16m1(out6, __riscv_vget_v_u16m1x8_u16m1(v_w, 6), chunk_vl); out6 += vlmax;
           __riscv_vse16_v_u16m1(out7, __riscv_vget_v_u16m1x8_u16m1(v_w, 7), chunk_vl); out7 += vlmax;
           remaining_n -= chunk_vl;
+          remaining_blocks--;
         } while (remaining_n > 0);
-        out0 = out7;
+        out0 = out7 + remaining_blocks * vlmax;
         w0 += 8;
       }
 
@@ -207,6 +209,7 @@ void xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8(
         uint16_t* out3 = out2 + nr;
 
         const uint16_t* w_ptr = w0;
+        unsigned char remaining_blocks = 1;
         size_t remaining_n = n;
         do {
           size_t chunk_vl = XNN_LIKELY(remaining_n >= vlmax)
@@ -220,17 +223,18 @@ void xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8(
           __riscv_vse16_v_u16m2(out2, __riscv_vget_v_u16m2x4_u16m2(v_w, 2), chunk_vl); out2 += vlmax;
           __riscv_vse16_v_u16m2(out3, __riscv_vget_v_u16m2x4_u16m2(v_w, 3), chunk_vl); out3 += vlmax;
           remaining_n -= chunk_vl;
+          remaining_blocks--;
         } while (remaining_n > 0);
-        out0 = out3;
+        out0 = out3 + remaining_blocks * vlmax;
         w0 += 4;
       }
 
       // Remaining KC rows one at a time.
-      vl = __riscv_vsetvl_e16m4(n);
-      vlmax = __riscv_vsetvlmax_e16m4();
+      vl = __riscv_vsetvl_e16m2(n);
+      vlmax = __riscv_vsetvlmax_e16m2();
       for (; k >= 1; k -= 1) {
-        vuint16m4_t v_w = __riscv_vlse16_v_u16m4(w0, kc_bstride, vl);
-        __riscv_vse16_v_u16m4(out0, v_w, vl);
+        vuint16m2_t v_w = __riscv_vlse16_v_u16m2(w0, kc_bstride, vl);
+        __riscv_vse16_v_u16m2(out0, v_w, vl);
         out0 += vlmax;
         w0 += 1;
       }
