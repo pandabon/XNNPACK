@@ -81,7 +81,7 @@ void xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfa(
       wb += nr;
 
       size_t vl_tmp;
-      asm volatile(
+      __asm__ volatile(
           ".insn i 0x57, 0x7, %[vlout], %[avl], 0x1C9\n\t"  // vsetvli e16,m2,ta,ma,altfmt
           "vfwmacc.vf %[a0], %[s0], %[v]\n\t"
           : [vlout] "=&r"(vl_tmp),

@@ -71,7 +71,7 @@ void xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
 
       vuint16m2_t vb_u16 = __riscv_vle16_v_u16m2(wb, vl);
       vfloat32m4_t vb;
-      asm volatile(
+      __asm__ volatile(
           ".option push\n\t"
           ".option arch, +zvfbfmin\n\t"
           "vsetvli zero, %[vl], e16, m2, ta, ma\n\t"
