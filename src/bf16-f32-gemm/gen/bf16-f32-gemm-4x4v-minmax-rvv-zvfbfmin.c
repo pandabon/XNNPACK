@@ -59,6 +59,7 @@ void xnn_bf16_f32_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin(
   const uint16_t* a3 = (const uint16_t*) ((uintptr_t) a2 + a_stride);
   float*          c3 = (float*) ((uintptr_t) c2 + cm_stride);
   if XNN_UNPREDICTABLE(mr < 4) { a3 = a2; c3 = c2; }
+  (void) cn_stride;
 
   const size_t nr = __riscv_vsetvlmax_e32m4();
   size_t vl = nr;
@@ -119,14 +120,9 @@ void xnn_bf16_f32_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin(
     vacc2 = __riscv_vfmin_vf_f32m4(vacc2, vmax, vl);
     vacc3 = __riscv_vfmin_vf_f32m4(vacc3, vmax, vl);
 
-    __riscv_vse32_v_f32m4(c0, vacc0, vl); c0 = (float*) ((uintptr_t) c0 + cn_stride);
-    __riscv_vse32_v_f32m4(c1, vacc1, vl); c1 = (float*) ((uintptr_t) c1 + cn_stride);
-    __riscv_vse32_v_f32m4(c2, vacc2, vl); c2 = (float*) ((uintptr_t) c2 + cn_stride);
-    __riscv_vse32_v_f32m4(c3, vacc3, vl); c3 = (float*) ((uintptr_t) c3 + cn_stride);
-
-    a0 = (const uint16_t*) ((uintptr_t) a0 - kc);
-    a1 = (const uint16_t*) ((uintptr_t) a1 - kc);
-    a2 = (const uint16_t*) ((uintptr_t) a2 - kc);
-    a3 = (const uint16_t*) ((uintptr_t) a3 - kc);
+    __riscv_vse32_v_f32m4(c0, vacc0, vl); c0 += vl;
+    __riscv_vse32_v_f32m4(c1, vacc1, vl); c1 += vl;
+    __riscv_vse32_v_f32m4(c2, vacc2, vl); c2 += vl;
+    __riscv_vse32_v_f32m4(c3, vacc3, vl); c3 += vl;
   } while (nc != 0);
 }

@@ -61,7 +61,8 @@ void xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
     nc -= vl;
 
     vfloat32m4_t vacc0 = __riscv_vle32_v_f32m4((const float*) w_ptr, vl);
-    w_ptr += nr * 2;  // skip NR fp32 bias (2 u16 per fp32)
+    const size_t bias_u16_stride = nr * (sizeof(float) / sizeof(uint16_t));
+    w_ptr += bias_u16_stride;
 
     const uint16_t* wb = (const uint16_t*) w_ptr;
     const uint16_t* a0k = a0;
@@ -103,7 +104,5 @@ void xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin(
 
     __riscv_vse16_v_u16m2(c0, vout0, vl);
     c0 = (uint16_t*) ((uintptr_t) c0 + cn_stride);
-
-    a0 = (const uint16_t*) ((uintptr_t) a0 - kc);
   } while (nc != 0);
 }
