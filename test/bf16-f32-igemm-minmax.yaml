@@ -1,0 +1,18 @@
+# Copyright 2026 UC Berkeley BAR
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+# RISC-V combined Zvfbfmin+Zvfbfa (vfwmacc.vf altfmt inner loop, fp32 output;
+# byte-equivalent to a hypothetical zvfbfa-only variant per kernels-report
+# §Scope, but emitted under the combined name for ladder symmetry with
+# bf16-igemm). Pack: xnn_pack_bf16_f32_conv_goki_w (FP32 bias slot, BF16
+# column-major weights — same layout as the bf16-{f32-,}gemm packers).
+- name: xnn_bf16_f32_igemm_minmax_ukernel_1x4v__rvv_zvfbfmin_zvfbfa
+  init: xnn_init_f32_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_conv_goki_w
+  k-block: 1
+- name: xnn_bf16_f32_igemm_minmax_ukernel_4x4v__rvv_zvfbfmin_zvfbfa
+  init: xnn_init_f32_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_conv_goki_w
+  k-block: 1

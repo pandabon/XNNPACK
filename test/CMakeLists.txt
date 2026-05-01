@@ -188,7 +188,9 @@ SHARD_TEST(qs8-qc8w-dwconv-minmax-fp32-test 10)
 
 SET(MICROKERNEL_GEMM_UNIT_TESTS
     bf16-f32-gemm-minmax
+    bf16-f32-igemm-minmax
     bf16-gemm-minmax
+    bf16-igemm-minmax
     f16-f32acc-gemm-minmax
     f16-f32acc-igemm-minmax
     f16-gemm-minmax

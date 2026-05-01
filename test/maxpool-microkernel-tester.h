@@ -278,6 +278,113 @@ class MaxPoolMicrokernelTester {
     }
   }
 
+  void Test(xnn_bf16_maxpool_ukernel_fn maxpool,
+            xnn_init_bf16_minmax_params_fn init_params) const {
+    ASSERT_LT(qmin(), qmax());
+
+    xnnpack::ReplicableRandomDevice rng;
+    std::uniform_real_distribution<float> f32dist(-1.0f, 1.0f);
+
+    xnnpack::Buffer<const xnn_bfloat16*> indirect_input(
+        (output_pixels() - 1) * step() + pooling_elements());
+    xnnpack::Buffer<xnn_bfloat16> input(
+        ((output_pixels() - 1) * step() + pooling_elements()) * channels(),
+        xnnpack::XnnExtraBytes);
+    xnnpack::Buffer<xnn_bfloat16> output(
+        (output_pixels() - 1) * output_stride() + channels(),
+        xnnpack::XnnExtraBytes);
+    xnnpack::Buffer<float> output_ref(output_pixels() * channels());
+    for (size_t iteration = 0; iteration < iterations(); iteration++) {
+      std::generate(input.begin(), input.end(), [&]() { return f32dist(rng); });
+
+      for (size_t i = 0;
+           i < (output_pixels() - 1) * step() + pooling_elements(); i++) {
+        indirect_input[i] = input.data() + i * channels() - input_offset();
+      }
+      std::shuffle(indirect_input.begin(),
+                   indirect_input.begin() + (output_pixels() - 1) * step() +
+                       pooling_elements(),
+                   rng);
+
+      for (size_t x = 0; x < output_pixels(); x++) {
+        for (size_t c = 0; c < channels(); c++) {
+          float max_value = -std::numeric_limits<float>::infinity();
+          for (size_t p = 0; p < pooling_elements(); p++) {
+            max_value = std::max<float>(
+                max_value,
+                static_cast<float>(
+                    indirect_input[x * step() + p][c + input_offset()]));
+          }
+          output_ref[x * channels() + c] = max_value;
+        }
+      }
+
+      const float accumulated_min =
+          *std::min_element(output_ref.cbegin(), output_ref.cend());
+      const float accumulated_max =
+          *std::max_element(output_ref.cbegin(), output_ref.cend());
+      const float accumulated_range = accumulated_max - accumulated_min;
+      float output_min =
+          accumulated_min +
+          accumulated_range *
+              (static_cast<float>(qmin() -
+                                  std::numeric_limits<int16_t>::min()) /
+               static_cast<float>(std::numeric_limits<int16_t>::max() -
+                                  std::numeric_limits<int16_t>::min()));
+      if (qmin() == std::numeric_limits<int16_t>::min()) {
+        output_min = -std::numeric_limits<float>::infinity();
+      }
+      float output_max =
+          accumulated_max -
+          accumulated_range *
+              (static_cast<float>(std::numeric_limits<int16_t>::max() -
+                                  qmax()) /
+               static_cast<float>(std::numeric_limits<int16_t>::max() -
+                                  std::numeric_limits<int16_t>::min()));
+      if (qmax() == std::numeric_limits<int16_t>::max()) {
+        output_max = +std::numeric_limits<float>::infinity();
+      }
+      // Round clamps onto the bf16 grid the kernel narrows to on store.
+      output_min = static_cast<float>(static_cast<xnn_bfloat16>(output_min));
+      output_max = static_cast<float>(static_cast<xnn_bfloat16>(output_max));
+
+      xnn_bf16_minmax_params params;
+      init_params(&params, static_cast<xnn_bfloat16>(output_min),
+                  static_cast<xnn_bfloat16>(output_max));
+
+      for (float& output_value : output_ref) {
+        output_value = std::max(std::min(output_value, output_max), output_min);
+      }
+
+      maxpool(output_pixels(), pooling_elements(), channels(),
+              indirect_input.data(),
+              input_offset() * sizeof(xnn_bfloat16), /*input_pixel_stride=*/0,
+              output.data(), step() * sizeof(void*),
+              output_stride() * sizeof(xnn_bfloat16), &params);
+
+      for (size_t x = 0; x < output_pixels(); x++) {
+        for (size_t c = 0; c < channels(); c++) {
+          const float got = static_cast<float>(output[x * output_stride() + c]);
+          ASSERT_GE(got, output_min)
+              << "at pixel " << x << " / " << output_pixels() << ", channel "
+              << c << " / " << channels()
+              << ", pooling elements = " << pooling_elements()
+              << ", step = " << step() << ", input offset = " << input_offset();
+          ASSERT_LE(got, output_max)
+              << "at pixel " << x << " / " << output_pixels() << ", channel "
+              << c << " / " << channels()
+              << ", pooling elements = " << pooling_elements()
+              << ", step = " << step() << ", input offset = " << input_offset();
+          ASSERT_EQ(got, output_ref[x * channels() + c])
+              << "at pixel " << x << " / " << output_pixels() << ", channel "
+              << c << " / " << channels()
+              << ", pooling elements = " << pooling_elements()
+              << ", step = " << step() << ", input offset = " << input_offset();
+        }
+      }
+    }
+  }
+
   void Test(xnn_f16_maxpool_ukernel_fn maxpool,
             xnn_init_f16_minmax_params_fn init_params) const {
     ASSERT_LT(qmin(), qmax());
@@ -514,6 +621,13 @@ class MaxPoolMicrokernelTester {
         tester.qmin(std::numeric_limits<uint8_t>::min())
             .qmax(std::numeric_limits<uint8_t>::max())
             .Test(maxpool, init_params);
+      };
+    }
+    explicit Kernel(xnn_bf16_maxpool_ukernel_fn maxpool,
+                    xnn_init_bf16_minmax_params_fn init_params)
+        : qmin(-16384), qmax(16384) {
+      dispatch = [maxpool, init_params](MaxPoolMicrokernelTester& tester) {
+        tester.Test(maxpool, init_params);
       };
     }
     explicit Kernel(xnn_f16_maxpool_ukernel_fn maxpool,

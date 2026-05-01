@@ -41,6 +41,7 @@ std::string GetTestName(
    arch_flags, channel_tile, primary_tile},
 
 const XnnTestParam xnn_test_params[] = {
+#include "src/bf16-maxpool/bf16-maxpool-minmax.inc"
 #include "src/f16-maxpool/f16-maxpool-minmax.inc"
 #include "src/f32-maxpool/f32-maxpool-minmax.inc"
 #include "src/s8-maxpool/s8-maxpool-minmax.inc"
