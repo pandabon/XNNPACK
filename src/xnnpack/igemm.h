@@ -2908,6 +2908,31 @@ DECLARE_QS8_QC8W_IGEMM_MINMAX_UKERNEL_FUNCTION(
 DECLARE_QS8_QC8W_IGEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_qs8_qc8w_igemm_minmax_fp32_ukernel_10x128c4__hvx)
 
+#define DECLARE_BF16_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(fn_name)         \
+  XNN_INTERNAL void fn_name(size_t mr, size_t nc, size_t kc, size_t ks, \
+                            const uint16_t** a, const void* w,          \
+                            float* c, size_t cm_stride, size_t cn_stride, \
+                            size_t a_offset, const uint16_t* zero,      \
+                            const struct xnn_f32_minmax_params* params);
+
+DECLARE_BF16_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_igemm_minmax_ukernel_1x4v__rvv_zvfbfmin_zvfbfa)
+DECLARE_BF16_F32_IGEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_igemm_minmax_ukernel_4x4v__rvv_zvfbfmin_zvfbfa)
+
+#define DECLARE_BF16_IGEMM_MINMAX_UKERNEL_FUNCTION(fn_name)             \
+  XNN_INTERNAL void fn_name(size_t mr, size_t nc, size_t kc, size_t ks, \
+                            const uint16_t** a, const void* w,          \
+                            xnn_bfloat16* c, size_t cm_stride,          \
+                            size_t cn_stride, size_t a_offset,          \
+                            const uint16_t* zero,                       \
+                            const struct xnn_bf16_minmax_params* params);
+
+DECLARE_BF16_IGEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_igemm_minmax_ukernel_1x4v__rvv_zvfbfmin_zvfbfa)
+DECLARE_BF16_IGEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_igemm_minmax_ukernel_4x4v__rvv_zvfbfmin_zvfbfa)
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

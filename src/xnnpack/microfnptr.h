@@ -247,6 +247,18 @@ typedef void (*xnn_f32_igemm_relu_ukernel_fn)(
 
 // IGEMM: Indirect GEMM with Min+Max activation
 
+typedef void (*xnn_bf16_f32_igemm_minmax_ukernel_fn)(
+    size_t mr, size_t nr, size_t kc, size_t ks, const uint16_t** a,
+    const void* w, float* c, size_t cm_stride, size_t cn_stride,
+    size_t a_offset, const uint16_t* zero,
+    const struct xnn_f32_minmax_params* params);
+
+typedef void (*xnn_bf16_igemm_minmax_ukernel_fn)(
+    size_t mr, size_t nr, size_t kc, size_t ks, const uint16_t** a,
+    const void* w, xnn_bfloat16* c, size_t cm_stride, size_t cn_stride,
+    size_t a_offset, const uint16_t* zero,
+    const struct xnn_bf16_minmax_params* params);
+
 typedef void (*xnn_f16_igemm_minmax_ukernel_fn)(
     size_t mr, size_t nr, size_t kc, size_t ks, const xnn_float16** a,
     const xnn_float16* w, xnn_float16* c, size_t cm_stride, size_t cn_stride,
@@ -438,6 +450,12 @@ typedef void (*xnn_maxpool_ukernel_fn)(size_t output_pixels,
                                        size_t input_increment,
                                        size_t output_increment,
                                        const void* params);
+
+typedef void (*xnn_bf16_maxpool_ukernel_fn)(
+    size_t output_pixels, size_t kernel_elements, size_t channels,
+    const xnn_bfloat16** input, size_t input_offset,
+    size_t input_pixel_stride, xnn_bfloat16* output, size_t input_increment,
+    size_t output_increment, const struct xnn_bf16_minmax_params* params);
 
 typedef void (*xnn_f16_maxpool_ukernel_fn)(
     size_t output_pixels, size_t kernel_elements, size_t channels,

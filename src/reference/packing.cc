@@ -2707,6 +2707,63 @@ void xnn_pack_f16_conv_goki_w(size_t g, size_t nc, size_t ks, size_t kc,
   } while (--g != 0);
 }
 
+// BF16 weights + FP32 bias variant of xnn_pack_f16_conv_goki_w. Output
+// layout: [nr * fp32 bias][ks * (kr-blocks) * (nr_block * kr * bf16)]
+// per nr-tile. Mirrors the bf16-f32 gemm packed-weights layout used by
+// the existing bf16-{f32-,}gemm RVV kernels (FP32 bias slot, BF16
+// column-major weights) and the on-device segmented packer
+// xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8.
+void xnn_pack_bf16_f32_conv_goki_w(size_t g, size_t nc, size_t ks, size_t kc,
+                                   size_t nr, size_t kr, size_t sr,
+                                   const xnn_bfloat16* k, const float* bias,
+                                   const void* scale, void* packed_weights,
+                                   size_t extra_bytes, const void* params) {
+  assert(g != 0);
+  assert(nr >= sr);
+  assert(k != nullptr);
+  assert(packed_weights != nullptr);
+
+  const size_t skr = sr * kr;
+  do {
+    for (size_t nr_block_start = 0; nr_block_start < nc; nr_block_start += nr) {
+      const size_t nr_block_size = min(nc - nr_block_start, nr);
+      float* packed_weights_float = (float*)packed_weights;
+      copy_bias(bias, nr_block_start, nr_block_size, packed_weights_float);
+      packed_weights = (void*)((uintptr_t)packed_weights + nr * sizeof(float));
+
+      for (size_t ki = 0; ki < ks; ki++) {
+        for (size_t kr_block_start = 0; kr_block_start < round_up_po2(kc, skr);
+             kr_block_start += kr) {
+          for (size_t nr_block_offset = 0; nr_block_offset < nr_block_size;
+               nr_block_offset++) {
+            const size_t kc_begin =
+                round_down_po2(kr_block_start, skr) +
+                ((kr_block_start + nr_block_offset * kr) & (skr - 1));
+            const size_t kc_end = std::min(kc, kc_begin + kr);
+            xnn_bfloat16* end = (xnn_bfloat16*)packed_weights + kr;
+            if (kc_begin < kc_end) {
+              std::copy_n(
+                  &k[((nr_block_start + nr_block_offset) * ks + ki) * kc +
+                     kc_begin],
+                  kc_end - kc_begin, (xnn_bfloat16*)packed_weights);
+              packed_weights = (xnn_bfloat16*)packed_weights + (kc_end - kc_begin);
+            }
+            std::fill((xnn_bfloat16*)packed_weights, end, xnn_bfloat16(0.0f));
+            packed_weights = end;
+          }
+          packed_weights = (void*)((uintptr_t)packed_weights +
+                                   (nr - nr_block_size) * kr * sizeof(uint16_t));
+        }
+      }
+      packed_weights = (void*)((uintptr_t)packed_weights + extra_bytes);
+    }
+    k += ks * kc * nc;
+    if XNN_UNPREDICTABLE (bias != nullptr) {
+      bias += nc;
+    }
+  } while (--g != 0);
+}
+
 void xnn_pack_f32_to_f16_conv_goki_w(size_t g, size_t nc, size_t ks, size_t kc,
                                      size_t nr, size_t kr, size_t sr,
                                      const float* k, const float* b,
@@ -2995,6 +3052,47 @@ void xnn_pack_f16_conv_kgo_w(size_t g, size_t nc, size_t ks, size_t nr,
     k += nc;
     if XNN_UNPREDICTABLE (b != nullptr) {
       b += nc;
+    }
+  }
+}
+
+// BF16 weights + FP32 bias variant of xnn_pack_f16_conv_kgo_w. Same
+// packed-weights layout as xnn_pack_bf16_f32_conv_goki_w; differs only
+// in the source-weight indexing (KGO vs GOKI).
+void xnn_pack_bf16_f32_conv_kgo_w(size_t g, size_t nc, size_t ks, size_t nr,
+                                  size_t kr, size_t sr, const xnn_bfloat16* k,
+                                  const float* bias, const void* scale,
+                                  void* packed_weights, size_t extra_bytes,
+                                  const void* params) {
+  assert(g != 0);
+  assert(nr >= sr);
+  assert(k != nullptr);
+  assert(packed_weights != nullptr);
+
+  for (size_t i = 0; i < g; i++) {
+    for (size_t nr_block_start = 0; nr_block_start < nc; nr_block_start += nr) {
+      const size_t nr_block_size = min(nc - nr_block_start, nr);
+      float* packed_weights_float = (float*)packed_weights;
+      copy_bias(bias, nr_block_start, nr_block_size, packed_weights_float);
+      packed_weights = (void*)((uintptr_t)packed_weights + nr * sizeof(float));
+
+      for (size_t ki = 0; ki < ks; ki++) {
+        for (size_t sr_block_offset = 0; sr_block_offset < sr;
+             sr_block_offset++) {
+          std::fill_n((xnn_bfloat16*)packed_weights, nr * kr, xnn_bfloat16(0.0f));
+          for (size_t nr_block_offset = (-sr_block_offset) & (sr - 1);
+               nr_block_offset < nr_block_size; nr_block_offset += sr) {
+            ((xnn_bfloat16*)packed_weights)[nr_block_offset * kr] =
+                k[ki * g * nc + (nr_block_start + nr_block_offset)];
+          }
+          packed_weights = (xnn_bfloat16*)packed_weights + nr * kr;
+        }
+      }
+      packed_weights = (void*)((uintptr_t)packed_weights + extra_bytes);
+    }
+    k += nc;
+    if XNN_UNPREDICTABLE (bias != nullptr) {
+      bias += nc;
     }
   }
 }
