@@ -195,6 +195,7 @@ struct xnn_convolution_operator {
 
 union xnn_params {
   union xnn_binary_uparams binary;
+  struct xnn_bf16_minmax_params bf16_minmax;
   struct xnn_f16_default_params f16_default;
   struct xnn_f32_default_params f32_default;
   struct xnn_f16_minmax_params f16_minmax;

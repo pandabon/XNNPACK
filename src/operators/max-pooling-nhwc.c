@@ -354,6 +354,71 @@ enum xnn_status xnn_create_max_pooling2d_nhwc_f16(
     max_pooling_op_out);
 }
 
+enum xnn_status xnn_create_max_pooling2d_nhwc_bf16(
+    uint32_t input_padding_top,
+    uint32_t input_padding_right,
+    uint32_t input_padding_bottom,
+    uint32_t input_padding_left,
+    uint32_t pooling_height,
+    uint32_t pooling_width,
+    uint32_t stride_height,
+    uint32_t stride_width,
+    uint32_t dilation_height,
+    uint32_t dilation_width,
+    float output_min,
+    float output_max,
+    uint32_t flags,
+    xnn_operator_t* max_pooling_op_out)
+{
+  if (isnan(output_min)) {
+    xnn_log_error(
+      "failed to create %s with NaN output lower bound: lower bound must be non-NaN",
+      xnn_operator_type_to_string(xnn_operator_type_max_pooling_nhwc_bf16));
+    return xnn_status_invalid_parameter;
+  }
+
+  if (isnan(output_max)) {
+    xnn_log_error(
+      "failed to create %s with NaN output upper bound: upper bound must be non-NaN",
+      xnn_operator_type_to_string(xnn_operator_type_max_pooling_nhwc_bf16));
+    return xnn_status_invalid_parameter;
+  }
+
+  // Round clamps onto the bf16 grid the kernel narrows to on store.
+  const xnn_bfloat16 output_min_as_bf16 = xnn_bfloat16_from_float(output_min);
+  const xnn_bfloat16 output_max_as_bf16 = xnn_bfloat16_from_float(output_max);
+  output_min = xnn_bfloat16_to_float(output_min_as_bf16);
+  output_max = xnn_bfloat16_to_float(output_max_as_bf16);
+  if (output_min > output_max) {
+    xnn_log_error(
+      "failed to create %s operator with [%.7g, %.7g] output range: lower bound must be less than or equal to upper bound",
+      xnn_operator_type_to_string(xnn_operator_type_max_pooling_nhwc_bf16), output_min, output_max);
+    return xnn_status_invalid_parameter;
+  }
+
+  const struct xnn_maxpool_config* maxpool_config = xnn_init_bf16_maxpool_config();
+  if (maxpool_config == NULL || maxpool_config->ukernel == NULL) {
+    xnn_log_error("failed to create %s operator: unsupported hardware configuration",
+                  xnn_operator_type_to_string(xnn_operator_type_max_pooling_nhwc_bf16));
+    return xnn_status_unsupported_hardware;
+  }
+
+  struct xnn_bf16_minmax_params params;
+  if (maxpool_config->init.bf16 != NULL) {
+    maxpool_config->init.bf16(&params, output_min_as_bf16, output_max_as_bf16);
+  }
+  return create_max_pooling2d_nhwc(
+    input_padding_top, input_padding_right, input_padding_bottom, input_padding_left,
+    pooling_height, pooling_width,
+    stride_height, stride_width,
+    dilation_height, dilation_width,
+    flags,
+    &params, sizeof(params),
+    maxpool_config,
+    xnn_operator_type_max_pooling_nhwc_bf16,
+    max_pooling_op_out);
+}
+
 static enum xnn_status reshape_max_pooling2d_nhwc(
   xnn_operator_t max_pooling_op,
   enum xnn_operator_type expected_operator_type,
@@ -617,6 +682,30 @@ enum xnn_status xnn_reshape_max_pooling2d_nhwc_f16(
     threadpool);
 }
 
+enum xnn_status xnn_reshape_max_pooling2d_nhwc_bf16(
+  xnn_operator_t max_pooling_op,
+  size_t batch_size,
+  size_t input_height,
+  size_t input_width,
+  size_t channels,
+  size_t input_pixel_stride,
+  size_t output_pixel_stride,
+  size_t* output_height_out,
+  size_t* output_width_out,
+  pthreadpool_t threadpool)
+{
+  return reshape_max_pooling2d_nhwc(
+    max_pooling_op, xnn_operator_type_max_pooling_nhwc_bf16,
+    batch_size, input_height, input_width,
+    channels, input_pixel_stride, output_pixel_stride,
+    /*log2_input_element_size=*/XNN_LOG2_SIZEOF_HALF,
+    /*log2_output_element_size=*/XNN_LOG2_SIZEOF_HALF,
+    max_pooling_op->maxpool_config,
+    &max_pooling_op->params.bf16_minmax, sizeof(max_pooling_op->params.bf16_minmax),
+    output_height_out, output_width_out,
+    threadpool);
+}
+
 enum xnn_status xnn_reshape_max_pooling2d_nhwc_f32(
   xnn_operator_t max_pooling_op,
   size_t batch_size,
@@ -706,6 +795,16 @@ enum xnn_status xnn_setup_max_pooling2d_nhwc_f16(
 {
   return setup_max_pooling2d_nhwc(
     max_pooling_op, xnn_operator_type_max_pooling_nhwc_f16,
+    input, output);
+}
+
+enum xnn_status xnn_setup_max_pooling2d_nhwc_bf16(
+    xnn_operator_t max_pooling_op,
+    const void* input,
+    void* output)
+{
+  return setup_max_pooling2d_nhwc(
+    max_pooling_op, xnn_operator_type_max_pooling_nhwc_bf16,
     input, output);
 }
 

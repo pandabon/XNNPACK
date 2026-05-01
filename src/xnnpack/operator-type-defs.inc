@@ -45,6 +45,8 @@ XNN_ENUM_ITEM(xnn_operator_type_convert_nc_f32_qdu8, "Convert (NC, F32, QDU8)")
 XNN_ENUM_ITEM(xnn_operator_type_convert_nc_f32_qp8, "Convert (NC, F32, QP8)")
 XNN_ENUM_ITEM(xnn_operator_type_convolution_nchw_f16, "Convolution (NCHW, F16)")
 XNN_ENUM_ITEM(xnn_operator_type_convolution_nchw_f32, "Convolution (NCHW, F32)")
+XNN_ENUM_ITEM(xnn_operator_type_convolution_nhwc_bf16, "Convolution (NHWC, BF16)")
+XNN_ENUM_ITEM(xnn_operator_type_convolution_nhwc_bf16_f32, "Convolution (NHWC, BF16, F32)")
 XNN_ENUM_ITEM(xnn_operator_type_convolution_nhwc_f16, "Convolution (NHWC, F16)")
 XNN_ENUM_ITEM(xnn_operator_type_convolution_nhwc_f32, "Convolution (NHWC, F32)")
 XNN_ENUM_ITEM(xnn_operator_type_convolution_nhwc_qdu8_f16_qc8w,
@@ -151,6 +153,7 @@ XNN_ENUM_ITEM(xnn_operator_type_fully_connected_nc_pqs8_qc8w,
               "Fully Connected (NC, PQS8, QC8W)")
 XNN_ENUM_ITEM(xnn_operator_type_fully_connected_nc_qu8,
               "Fully Connected (NC, QU8)")
+XNN_ENUM_ITEM(xnn_operator_type_max_pooling_nhwc_bf16, "Max Pooling (NHWC, BF16)")
 XNN_ENUM_ITEM(xnn_operator_type_max_pooling_nhwc_f16, "Max Pooling (NHWC, F16)")
 XNN_ENUM_ITEM(xnn_operator_type_max_pooling_nhwc_f32, "Max Pooling (NHWC, F32)")
 XNN_ENUM_ITEM(xnn_operator_type_max_pooling_nhwc_s8, "Max Pooling (NHWC, S8)")
