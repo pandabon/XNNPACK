@@ -1317,6 +1317,8 @@ static void init_f32_sigmoid_config(void) {
     #else
       f32_sigmoid_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_f32_vsigmoid_ukernel__wasmsimd_rr2_p5_div_u16);
     #endif
+  #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+    f32_sigmoid_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_f32_vsigmoid_ukernel__rvv_rr1_p5_div_u4v);
   #else
     f32_sigmoid_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_f32_vsigmoid_ukernel__scalar_rr2_lut64_p2_div_u2);
   #endif

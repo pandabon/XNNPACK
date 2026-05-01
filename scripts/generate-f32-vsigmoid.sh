@@ -212,4 +212,9 @@ tools/xngen src/f32-vsigmoid/scalar-rr2-p5-div.c.in -D BATCH_TILE=1 -o src/f32-v
 tools/xngen src/f32-vsigmoid/scalar-rr2-p5-div.c.in -D BATCH_TILE=2 -o src/f32-vsigmoid/gen/f32-vsigmoid-scalar-rr2-p5-div-u2.c &
 tools/xngen src/f32-vsigmoid/scalar-rr2-p5-div.c.in -D BATCH_TILE=4 -o src/f32-vsigmoid/gen/f32-vsigmoid-scalar-rr2-p5-div-u4.c &
 
+##################################### RISCV VECTOR #####################################
+tools/xngen src/f32-vsigmoid/rvv.c.in -D LMUL=1 -o src/f32-vsigmoid/gen/f32-vsigmoid-rvv-rr1-p5-div-u1v.c &
+tools/xngen src/f32-vsigmoid/rvv.c.in -D LMUL=2 -o src/f32-vsigmoid/gen/f32-vsigmoid-rvv-rr1-p5-div-u2v.c &
+tools/xngen src/f32-vsigmoid/rvv.c.in -D LMUL=4 -o src/f32-vsigmoid/gen/f32-vsigmoid-rvv-rr1-p5-div-u4v.c &
+
 wait
