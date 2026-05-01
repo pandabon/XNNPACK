@@ -46,6 +46,13 @@ void xnn_x16_transposec_ukernel__4x4_rvv(
   do {
     size_t bh = block_height;
     size_t vl = __riscv_vsetvl_e16m1(tile_height);
+    // Inner-loop contract: when bh >= tile_height, vsetvl must return
+    // tile_height (i.e. host vlmax >= tile_height). Below that the loop
+    // would advance pointers by tile_hbytes while only writing vl rows
+    // → silent under-processing. The runtime config ladder enforces this
+    // by selecting kernels whose tile_height matches vlmax exactly; this
+    // assert catches a hypothetical ladder regression in debug builds.
+    assert(block_height < tile_height || vl == tile_height);
     for (; bh >= 4; bh -= 4) {
       if (block_width >= tile_width) {
         vuint16m1x4_t tuple = __riscv_vlsseg4e16_v_u16m1x4(i0, input_stride, vl);
@@ -104,6 +111,10 @@ void xnn_x16_transposec_ukernel__4x4_rvv(
     if (bh != 0) {
       const uint16_t* i = i0;
       vl = __riscv_vsetvl_e16m1(bh);
+      // Trailing-path contract: vsetvl(bh) must return bh (i.e. vlmax >= bh,
+      // and bh < tile_height ≤ vlmax holds when the kernel is correctly
+      // selected). See the inner-loop assert above for the ladder rationale.
+      assert(vl == bh);
       if (block_width >= tile_width) {
         vuint16m1x4_t tuple = __riscv_vlsseg4e16_v_u16m1x4(i, input_stride, vl);
 
