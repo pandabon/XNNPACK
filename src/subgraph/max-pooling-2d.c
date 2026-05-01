@@ -39,6 +39,23 @@ static enum xnn_status create_max_pooling_operator(
 
   enum xnn_status status;
   switch (datatype) {
+    case xnn_datatype_bf16:
+      status = xnn_create_max_pooling2d_nhwc_bf16(
+        node->params.pooling_2d.padding_top,
+        node->params.pooling_2d.padding_right,
+        node->params.pooling_2d.padding_bottom,
+        node->params.pooling_2d.padding_left,
+        node->params.pooling_2d.pooling_height,
+        node->params.pooling_2d.pooling_width,
+        node->params.pooling_2d.stride_height,
+        node->params.pooling_2d.stride_width,
+        node->params.pooling_2d.dilation_height,
+        node->params.pooling_2d.dilation_width,
+        node->activation.output_min,
+        node->activation.output_max,
+        node->flags,
+        &opdata->operator_objects[0]);
+      break;
     case xnn_datatype_fp16:
       status = xnn_create_max_pooling2d_nhwc_f16(
         node->params.pooling_2d.padding_top,
@@ -147,6 +164,19 @@ static enum xnn_status reshape_max_pooling_operator(
   enum xnn_status status = xnn_status_invalid_state;
   size_t output_height, output_width;
   switch (opdata->operator_objects[0]->type) {
+    case xnn_operator_type_max_pooling_nhwc_bf16:
+      status = xnn_reshape_max_pooling2d_nhwc_bf16(
+        opdata->operator_objects[0],
+        batch_size,
+        input_height,
+        input_width,
+        channels,
+        /*input_pixel_stride=*/channels,
+        /*output_pixel_stride=*/channels,
+        &output_height,
+        &output_width,
+        threadpool);
+      break;
     case xnn_operator_type_max_pooling_nhwc_f16:
       status = xnn_reshape_max_pooling2d_nhwc_f16(
         opdata->operator_objects[0],
@@ -244,6 +274,11 @@ static enum xnn_status setup_max_pooling_operator(
   assert(output_data != NULL);
 
   switch (opdata->operator_objects[0]->type) {
+    case xnn_operator_type_max_pooling_nhwc_bf16:
+      return xnn_setup_max_pooling2d_nhwc_bf16(
+        opdata->operator_objects[0],
+        input_data,
+        output_data);
     case xnn_operator_type_max_pooling_nhwc_f16:
       return xnn_setup_max_pooling2d_nhwc_f16(
         opdata->operator_objects[0],
@@ -346,6 +381,7 @@ enum xnn_status xnn_define_max_pooling_2d(
   switch (input_value->datatype) {
     case xnn_datatype_fp16:
     case xnn_datatype_fp32:
+    case xnn_datatype_bf16:
     case xnn_datatype_qint8:
     case xnn_datatype_quint8:
       break;
@@ -372,6 +408,8 @@ enum xnn_status xnn_define_max_pooling_2d(
     case xnn_datatype_fp16:
       break;
     case xnn_datatype_fp32:
+      break;
+    case xnn_datatype_bf16:
       break;
     case xnn_datatype_qint8:
       break;

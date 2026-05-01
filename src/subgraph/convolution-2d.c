@@ -236,6 +236,37 @@ static enum xnn_status create_convolution_operator(
                 XNN_UNREACHABLE;
             }
             break;
+          case xnn_datatype_bf16:
+            switch (input_datatype) {
+              case xnn_datatype_bf16:
+                status = xnn_create_convolution2d_nhwc_bf16_f32(
+                    node->params.convolution_2d.input_padding_top,
+                    node->params.convolution_2d.input_padding_right,
+                    node->params.convolution_2d.input_padding_bottom,
+                    node->params.convolution_2d.input_padding_left,
+                    node->params.convolution_2d.kernel_height,
+                    node->params.convolution_2d.kernel_width,
+                    node->params.convolution_2d.subsampling_height,
+                    node->params.convolution_2d.subsampling_width,
+                    node->params.convolution_2d.dilation_height,
+                    node->params.convolution_2d.dilation_width,
+                    node->params.convolution_2d.groups,
+                    node->params.convolution_2d.group_input_channels,
+                    node->params.convolution_2d.group_output_channels,
+                    node->params.convolution_2d.group_input_channels *
+                        node->params.convolution_2d
+                            .groups /* input_pixel_stride */,
+                    node->params.convolution_2d.group_output_channels *
+                        node->params.convolution_2d
+                            .groups /* output_pixel_stride */,
+                    filter_data, bias_data, node->activation.output_min,
+                    node->activation.output_max, node->flags, weights_cache,
+                    &opdata->operator_objects[0]);
+                break;
+              default:
+                XNN_UNREACHABLE;
+            }
+            break;
           case xnn_datatype_qcint8:
             switch (input_datatype) {
               case xnn_datatype_qdint8:
@@ -395,6 +426,43 @@ static enum xnn_status create_convolution_operator(
         }
         break;
       }
+      case xnn_datatype_bf16:
+        switch (filter_datatype) {
+          case xnn_datatype_bf16:
+            switch (input_datatype) {
+              case xnn_datatype_bf16:
+                status = xnn_create_convolution2d_nhwc_bf16(
+                    node->params.convolution_2d.input_padding_top,
+                    node->params.convolution_2d.input_padding_right,
+                    node->params.convolution_2d.input_padding_bottom,
+                    node->params.convolution_2d.input_padding_left,
+                    node->params.convolution_2d.kernel_height,
+                    node->params.convolution_2d.kernel_width,
+                    node->params.convolution_2d.subsampling_height,
+                    node->params.convolution_2d.subsampling_width,
+                    node->params.convolution_2d.dilation_height,
+                    node->params.convolution_2d.dilation_width,
+                    node->params.convolution_2d.groups,
+                    node->params.convolution_2d.group_input_channels,
+                    node->params.convolution_2d.group_output_channels,
+                    node->params.convolution_2d.group_input_channels *
+                        node->params.convolution_2d
+                            .groups /* input_pixel_stride */,
+                    node->params.convolution_2d.group_output_channels *
+                        node->params.convolution_2d
+                            .groups /* output_pixel_stride */,
+                    filter_data, bias_data, node->activation.output_min,
+                    node->activation.output_max, node->flags, weights_cache,
+                    &opdata->operator_objects[0]);
+                break;
+              default:
+                XNN_UNREACHABLE;
+            }
+            break;
+          default:
+            XNN_UNREACHABLE;
+        }
+        break;
       case xnn_datatype_qint8:
         switch (filter_datatype) {
           case xnn_datatype_qint8: {
@@ -619,6 +687,16 @@ enum xnn_status reshape_convolution_operator(struct xnn_operator_data* opdata,
           opdata->operator_objects[0], batch_size, input_height, input_width,
           &opdata->workspace_size, &output_height, &output_width, threadpool);
       break;
+    case xnn_operator_type_convolution_nhwc_bf16:
+      status = xnn_reshape_convolution2d_nhwc_bf16(
+          opdata->operator_objects[0], batch_size, input_height, input_width,
+          &opdata->workspace_size, &output_height, &output_width, threadpool);
+      break;
+    case xnn_operator_type_convolution_nhwc_bf16_f32:
+      status = xnn_reshape_convolution2d_nhwc_bf16_f32(
+          opdata->operator_objects[0], batch_size, input_height, input_width,
+          &opdata->workspace_size, &output_height, &output_width, threadpool);
+      break;
     case xnn_operator_type_convolution_nhwc_qd8_f16_qc8w:
       status = xnn_reshape_convolution2d_nhwc_qd8_f16_qc8w(
           opdata->operator_objects[0], batch_size, input_height, input_width,
@@ -730,6 +808,16 @@ enum xnn_status setup_convolution_operator(
                                               opdata->workspace, input_data,
                                               output_data);
       break;
+    case xnn_operator_type_convolution_nhwc_bf16:
+      return xnn_setup_convolution2d_nhwc_bf16(opdata->operator_objects[0],
+                                               opdata->workspace, input_data,
+                                               output_data);
+      break;
+    case xnn_operator_type_convolution_nhwc_bf16_f32:
+      return xnn_setup_convolution2d_nhwc_bf16_f32(opdata->operator_objects[0],
+                                                   opdata->workspace, input_data,
+                                                   output_data);
+      break;
     case xnn_operator_type_convolution_nhwc_qc8:
       return xnn_setup_convolution2d_nhwc_qs8_qc8w(opdata->operator_objects[0],
                                                    opdata->workspace,
@@ -822,6 +910,19 @@ static inline bool validate_datatypes_with_bias(
         return true;
       }
       break;
+    case xnn_datatype_bf16:
+      // bf16 conv2d uses FP32 bias to match the bf16-{f32-,}gemm packed
+      // weights layout (FP32 bias slot + BF16 column-major weights).
+      if (input_datatype == xnn_datatype_bf16 &&
+          bias_datatype == xnn_datatype_fp32 &&
+          output_datatype == xnn_datatype_bf16) {
+        return true;
+      } else if (input_datatype == xnn_datatype_bf16 &&
+                 bias_datatype == xnn_datatype_fp32 &&
+                 output_datatype == xnn_datatype_fp32) {
+        return true;
+      }
+      break;
     case xnn_datatype_qint8:
       if (input_datatype == xnn_datatype_qint8 &&
           bias_datatype == xnn_datatype_qint32 &&
@@ -874,6 +975,15 @@ static inline bool validate_datatypes_without_bias(
     case xnn_datatype_fp16:
       if (input_datatype == xnn_datatype_fp32 &&
           output_datatype == xnn_datatype_fp32) {
+        return true;
+      }
+      break;
+    case xnn_datatype_bf16:
+      if (input_datatype == xnn_datatype_bf16 &&
+          output_datatype == xnn_datatype_bf16) {
+        return true;
+      } else if (input_datatype == xnn_datatype_bf16 &&
+                 output_datatype == xnn_datatype_fp32) {
         return true;
       }
       break;
@@ -1032,6 +1142,7 @@ enum xnn_status xnn_define_convolution_2d(
   switch (input_value->datatype) {
     case xnn_datatype_fp16:
     case xnn_datatype_fp32:
+    case xnn_datatype_bf16:
     case xnn_datatype_qint8:
     case xnn_datatype_quint8:
       break;
@@ -1084,6 +1195,7 @@ enum xnn_status xnn_define_convolution_2d(
   switch (filter_value->datatype) {
     case xnn_datatype_fp32:
     case xnn_datatype_fp16:
+    case xnn_datatype_bf16:
       break;
     case xnn_datatype_qint8:
       if (filter_value->quantization.zero_point != 0) {
@@ -1180,6 +1292,7 @@ enum xnn_status xnn_define_convolution_2d(
   switch (output_value->datatype) {
     case xnn_datatype_fp16:
     case xnn_datatype_fp32:
+    case xnn_datatype_bf16:
     case xnn_datatype_qint8:
     case xnn_datatype_quint8:
       break;
