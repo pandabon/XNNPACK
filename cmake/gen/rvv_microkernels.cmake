@@ -16,8 +16,10 @@ SET(PROD_RVV_MICROKERNEL_SRCS
   src/bf16-f32-gemm/gen/bf16-f32-gemm-4x4v-minmax-rvv-zvfbfmin.c
   src/bf16-gemm/gen/bf16-gemm-1x4v-minmax-rvv-zvfbfa.c
   src/bf16-gemm/gen/bf16-gemm-1x4v-minmax-rvv-zvfbfmin.c
+  src/bf16-gemm/gen/bf16-gemm-1x4v-minmax-rvv-zvfbfmin-zvfbfa.c
   src/bf16-gemm/gen/bf16-gemm-4x4v-minmax-rvv-zvfbfa.c
   src/bf16-gemm/gen/bf16-gemm-4x4v-minmax-rvv-zvfbfmin.c
+  src/bf16-gemm/gen/bf16-gemm-4x4v-minmax-rvv-zvfbfmin-zvfbfa.c
   src/f32-argmaxpool/f32-argmaxpool-9p8x-rvv-u1v.c
   src/f32-conv-hwc2chw/f32-conv-hwc2chw-3x3s2p1c3x2v-rvv-2x2.c
   src/f32-dwconv/gen/f32-dwconv-3p8vc-minmax-rvv.c
