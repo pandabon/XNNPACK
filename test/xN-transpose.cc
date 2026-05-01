@@ -17,9 +17,37 @@
 #include "include/xnnpack.h"
 #include "src/xnnpack/buffer.h"
 #include "src/xnnpack/common.h"
+#include "src/xnnpack/hardware-config.h"
 #include "src/xnnpack/isa-checks.h"
 #include "src/xnnpack/microfnptr.h"
 #include "src/xnnpack/transpose.h"
+
+// RVV transposec ukernels assume `vsetvl_e<SIZE>m1(tile_height)` returns
+// tile_height — i.e. hardware vlenb >= (element_size_in_bytes *
+// tile_height). The runtime config ladder enforces this in production
+// (only selecting a kernel at-or-above its floor VLEN), but the gtest
+// framework parameterizes over every registered kernel regardless of
+// host vlenb. Skip below-floor RVV kernels so the test suite is
+// VLEN-portable end to end (32..1024).
+//
+// .inc registration order: XNN_TRANSPOSE_UKERNEL(..., element_size,
+// element_type, tile_height, tile_width). The TestParams field named
+// `block_width` actually holds the kernel's internal tile_height (first
+// number in the kernel name's NxM suffix); see the macro at the top of
+// transpose_ukernels[] above.
+#define TEST_REQUIRES_TRANSPOSE_VLEN()                                       \
+  do {                                                                       \
+    if ((GetParam().arch_flags & xnn_arch_riscv_vector) != 0) {              \
+      const struct xnn_hardware_config* hw = xnn_init_hardware_config();     \
+      const size_t required_vlenb =                                          \
+          (GetParam().element_size * GetParam().block_width) / 8;            \
+      if (hw == nullptr || hw->vlenb < required_vlenb) {                     \
+        GTEST_SKIP() << "kernel needs vlenb >= " << required_vlenb           \
+                     << " (host vlenb = "                                    \
+                     << (hw ? hw->vlenb : 0) << ")";                         \
+      }                                                                      \
+    }                                                                        \
+  } while (0)
 
 using transpose_ukernel =
     std::function<void(const void* input, void* output, size_t input_row_stride,
@@ -121,6 +149,7 @@ class TransposeTest : public testing::TestWithParam<TestParams> {};
 
 TEST_P(TransposeTest, bh_bw) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -135,6 +164,7 @@ TEST_P(TransposeTest, bh_bw) {
 
 TEST_P(TransposeTest, bh_1_bhx2_bw_1_bwx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -153,6 +183,7 @@ TEST_P(TransposeTest, bh_1_bhx2_bw_1_bwx2) {
 
 TEST_P(TransposeTest, bh_bwx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -167,6 +198,7 @@ TEST_P(TransposeTest, bh_bwx2) {
 
 TEST_P(TransposeTest, bh_bwp1_bwx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -183,6 +215,7 @@ TEST_P(TransposeTest, bh_bwp1_bwx2) {
 
 TEST_P(TransposeTest, bhx2_bwp1_bwx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -199,6 +232,7 @@ TEST_P(TransposeTest, bhx2_bwp1_bwx2) {
 
 TEST_P(TransposeTest, bhx2_bw) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -213,6 +247,7 @@ TEST_P(TransposeTest, bhx2_bw) {
 
 TEST_P(TransposeTest, bhp1_bhx2_bw) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -229,6 +264,7 @@ TEST_P(TransposeTest, bhp1_bhx2_bw) {
 
 TEST_P(TransposeTest, bhp1_bhx2_bwx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -245,6 +281,7 @@ TEST_P(TransposeTest, bhp1_bhx2_bwx2) {
 
 TEST_P(TransposeTest, bhp1_bhx2_bwp1_bwx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -263,6 +300,7 @@ TEST_P(TransposeTest, bhp1_bhx2_bwp1_bwx2) {
 
 TEST_P(TransposeTest, bh_bw_is_bwx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -277,6 +315,7 @@ TEST_P(TransposeTest, bh_bw_is_bwx2) {
 
 TEST_P(TransposeTest, bh_bw_os_bhx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -291,6 +330,7 @@ TEST_P(TransposeTest, bh_bw_os_bhx2) {
 
 TEST_P(TransposeTest, bh_bw_is_bwx2_os_bhx2) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -311,6 +351,7 @@ class TransposeVTest : public testing::TestWithParam<TestParams> {};
 
 TEST_P(TransposeVTest, bhx17_bwx19_ies_esp11) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -328,6 +369,7 @@ TEST_P(TransposeVTest, bhx17_bwx19_ies_esp11) {
 
 TEST_P(TransposeVTest, bhx3_bwx5_oes_esp11) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;
@@ -345,6 +387,7 @@ TEST_P(TransposeVTest, bhx3_bwx5_oes_esp11) {
 
 TEST_P(TransposeVTest, bhx7_bwx23_ies_esp17_oes_esp13) {
   TEST_REQUIRES_ARCH_FLAGS(GetParam().arch_flags);
+  TEST_REQUIRES_TRANSPOSE_VLEN();
   const size_t element_size = GetParam().element_size / 8;
   const size_t block_width = GetParam().block_width;
   const size_t block_height = GetParam().block_height;

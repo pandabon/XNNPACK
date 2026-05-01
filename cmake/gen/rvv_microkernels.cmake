@@ -111,6 +111,10 @@ SET(PROD_RVV_MICROKERNEL_SRCS
   src/qu8-vmulc/gen/qu8-vmulc-minmax-f32-rvv-u2v.c
   src/s8-vclamp/gen/s8-vclamp-rvv-u4v.c
   src/u8-vclamp/gen/u8-vclamp-rvv-u4v.c
+  src/x16-transposec/gen/x16-transposec-4x4-rvv.c
+  src/x16-transposec/gen/x16-transposec-8x8-rvv.c
+  src/x16-transposec/gen/x16-transposec-16x8-rvv.c
+  src/x16-transposec/gen/x16-transposec-32x8-rvv.c
   src/x16-x32-packw/gen/x16-x32-packw-x4v-gemm-goi-rvv-u8.c
   src/x32-packw/gen/x32-packw-x4v-gemm-goi-rvv-u8.c
   src/x32-transposec/gen/x32-transposec-4x4-rvv.c

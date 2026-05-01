@@ -3,6 +3,7 @@
 //   Template: src/x32-transposec/rvv.c.in
 //   Generator: tools/xngen
 //
+// Copyright 2026 UC Berkeley BAR — extended for SIZE=16 (x16-transposec).
 // Copyright 2023 SiFive, Inc.
 //
 // This source code is licensed under the BSD-style license found in the

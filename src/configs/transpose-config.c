@@ -137,6 +137,18 @@ static void init_transpose_config(void) {
     transpose_config.x24.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x24_transposec_ukernel__1x2_scalar);
     transpose_config.x24.tile_size = 32;
     #if XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+      // Floor-VLEN invariant for the RVV transposec ladders below: each
+      // branch maps a host vlenb to the kernel whose internal
+      // `vsetvl_e<SIZE>m1(tile_height)` returns `tile_height` exactly at
+      // that vlenb (i.e. vlenb >= element_size_bytes * tile_height). See
+      // src/x32-transposec/rvv.c.in §$assert. The test suite enforces
+      // this contract via TEST_REQUIRES_TRANSPOSE_VLEN in
+      // test/xN-transpose.cc — kernels below their floor get GTEST_SKIP
+      // since the ladder never selects them at sub-floor vlenb anyway.
+      // When adding a new tile shape, update both this ladder and the
+      // .inc registration; the test framework derives the floor from
+      // (element_size, block_width) at runtime, so no separate metadata
+      // edit is needed.
       const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
       assert(hardware_config != NULL);
       if (hardware_config->vlenb >= 128) {
@@ -154,6 +166,21 @@ static void init_transpose_config(void) {
       } else {
         transpose_config.x32.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x32_transposec_ukernel__2x4_scalar_int);
         transpose_config.x32.tile_size = 32;
+      }
+      // x16 RVV ladder mirrors x32, halved vlenb thresholds (e16 lanes are
+      // 2x as dense per VLEN as e32). Falls back to scalar at vlenb < 8.
+      if (hardware_config->vlenb >= 64) {
+        transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__32x8_rvv);
+        transpose_config.x16.tile_size = 32;
+      } else if (hardware_config->vlenb == 32) {
+        transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__16x8_rvv);
+        transpose_config.x16.tile_size = 32;
+      } else if (hardware_config->vlenb == 16) {
+        transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__8x8_rvv);
+        transpose_config.x16.tile_size = 32;
+      } else if (hardware_config->vlenb == 8) {
+        transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__4x4_rvv);
+        transpose_config.x16.tile_size = 32;
       }
     #elif XNN_ARCH_HEXAGON && XNN_ENABLE_HVX
       transpose_config.x32.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x32_transposec_ukernel__32x32_multi_multi_hvx);
