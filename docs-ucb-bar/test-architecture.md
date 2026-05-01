@@ -1,7 +1,86 @@
-# XNNPack GEMM microkernel test architecture
+# XNNPack test architecture
 
-End-to-end pipeline of how XNNPack's existing gtest-based microkernel tests
-work, in order from spec to run.
+End-to-end pipeline of how XNNPack's existing gtest-based tests work,
+organised by category and layer. §1–7 walk the **GEMM-microkernel**
+pipeline in detail (the most elaborate one); §0 maps that flow to the
+other categories so divergences are easy to find.
+
+## 0. Test category & layer map
+
+XNNPack tests fall into **three layers**, each catching wiring the lower
+ones can't:
+
+1. **Microkernel layer** — direct call into a kernel symbol with hand-built
+   activations / packed weights. One ELF per kernel family (or per op,
+   depending on category). All driven from [test/CMakeLists.txt](../test/CMakeLists.txt).
+2. **Operator layer** — exercises the public C API
+   (`xnn_create_*` → `xnn_reshape_*` → `xnn_setup_*`). One source file per
+   operator under [test/operators/](../test/operators/) (~60 files);
+   wired via `ADD_SUBDIRECTORY(operators)` at line 88. Catches
+   config-dispatch / packer / setup wiring the microkernel layer can't.
+3. **Subgraph layer** — exercises `xnn_define_*` + the graph runtime. One
+   source file per node type under [test/subgraph/](../test/subgraph/);
+   wired via `ADD_SUBDIRECTORY(subgraph)` at line 89. Catches
+   validate-datatypes / dispatch-switch wiring the operator layer can't.
+
+A given kernel is hit by **all three layers** transitively. The categories
+below are a partition of the *microkernel layer only*.
+
+### Microkernel-layer categories (7 SETs in [test/CMakeLists.txt](../test/CMakeLists.txt))
+
+Each `SET(...)` lists family names; a `FOREACH` makes one ELF per name.
+Two driver patterns are in use:
+
+- **YAML + per-family generator → checked-in `.cc`** — one ELF per family,
+  generated `.cc` instantiates one test suite per kernel variant in the
+  YAML. The pattern walked through in §1–7.
+- **`.inc` X-macro register → one shared driver `.cc`** — one ELF for the
+  whole category, the driver loops over the union of `.inc` lists. Used
+  for maxpool/avgpool today; cheaper to add a new family (drop in an
+  `.inc`), heavier to add a new test case (modify shared driver).
+
+| SET (line) | Pattern | Generator | Notes |
+|------------|---------|-----------|-------|
+| `MICROKERNEL_GEMM_UNIT_TESTS` (189) | YAML + gen | [tools/generate-gemm-test.py](../tools/generate-gemm-test.py) | gemm + igemm; uses `FILE(GLOB ${TEST}*.cc)` so e.g. bf16-gemm-minmax pulls in any companion `.cc`. **§1–7 walk this in detail.** |
+| `MICROKERNEL_DWCONV_UNIT_TESTS` (160) | YAML + gen | [tools/generate-dwconv-test.py](../tools/generate-dwconv-test.py) | depthwise conv |
+| `MICROKERNEL_VBINARY_UNIT_TESTS` (267) | YAML + gen | [tools/generate-vbinary-test.py](../tools/generate-vbinary-test.py) | one ELF per op (`f32-vadd`, `f16-vmul`, …) |
+| `MICROKERNEL_VUNARY_TESTS` (376) | YAML + gen | [tools/generate-vunary-test.py](../tools/generate-vunary-test.py) | one ELF per op (`f32-vsigmoid`, `f16-vtanh`, …) |
+| `MICROKERNEL_VCVT_TESTS` (339) | YAML + gen | (no dedicated generator on disk; `.cc` checked in directly) | dtype convert |
+| `MICROKERNEL_PACKQ_UNIT_TESTS` (251) | hand-written `.cc` | — | quantised packers, kleidiai-dep |
+| `MICROKERNEL_UNIT_TESTS` (92) | **mixed** | various | catchall: maxpool/avgpool (`.inc` X-macro shared driver), ibilinear, packw, raddstoreexpminusmax, spmm, indirection, transpose, lut, … each with its own per-op driver |
+
+Where `MICROKERNEL_UNIT_TESTS` uses `.inc` (maxpool, avgpool): the driver
+`.cc` (e.g. [test/maxpool-minmax.cc](../test/maxpool-minmax.cc))
+`#include`s every per-family `.inc` (e.g.
+`src/{f16,f32,s8,u8,bf16}-maxpool/<family>-minmax.inc`) under a local
+`XNN_UKERNEL` macro that expands each line into a `XnnTestParam` row.
+Adding a new family = drop a `.inc` and add one `#include` to the driver.
+No YAML, no generator. Per-family build-option / arch gating goes inside
+the `.inc` via `#if XNN_ARCH_* && XNN_ENABLE_*`.
+
+### Cross-cutting microkernel infra
+
+- [test/gemm-microkernel-tester.{h,cc}](../test/gemm-microkernel-tester.h)
+  — the GEMM `Test()` overloads (one per ukernel-fn-pointer typedef);
+  see §3.
+- Per-family tester headers next to the family driver (e.g.
+  [test/maxpool-microkernel-tester.h](../test/maxpool-microkernel-tester.h),
+  [test/dwconv-microkernel-tester.h](../test/dwconv-microkernel-tester.h),
+  [test/conv-hwc-microkernel-tester.h](../test/conv-hwc-microkernel-tester.h)).
+- [test/replicable_random_device.h](../test/replicable_random_device.h),
+  [test/buffer.h](../test/buffer.h), [test/next_prime.h](../test/next_prime.h)
+  — shared utilities used across all categories.
+- [src/xnnpack/isa-checks.h](../src/xnnpack/isa-checks.h) —
+  `TEST_REQUIRES_ARCH_FLAGS` runtime arch-gate macro (§7).
+
+### Layer-2 / Layer-3 drivers
+
+Operator and subgraph tests each have their own `*-operator-tester.h` /
+`*-subgraph-tester.h` fixture per node type, e.g.
+[test/operators/convolution-operator-tester.h](../test/operators/convolution-operator-tester.h)
+and [test/subgraph/subgraph-tester.h](../test/subgraph/subgraph-tester.h).
+These are out of scope for the GEMM-specific walkthrough below but follow
+the same gtest fixture conventions.
 
 ## 1. Spec files (YAML) — one entry per kernel variant
 
