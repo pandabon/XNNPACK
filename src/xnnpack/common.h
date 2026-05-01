@@ -140,6 +140,12 @@
 
 #if XNN_PLATFORM_WINDOWS
 #define XNN_HAS_PTHREADS 0
+#elif defined(__has_include)
+#if __has_include(<pthread.h>)
+#define XNN_HAS_PTHREADS 1
+#else
+#define XNN_HAS_PTHREADS 0
+#endif
 #else
 #define XNN_HAS_PTHREADS 1
 #endif

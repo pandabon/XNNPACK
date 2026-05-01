@@ -119,3 +119,23 @@
   pack: xnn_pack_bf16_f32_gemm_goi_w
   init: xnn_init_f32_minmax_scalar_params
   k-block: 4
+
+# RISC-V Zvfbfmin (BF16 widen via vfwcvtbf16.f.f.v + base-V FMA on FP32)
+- name: xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin
+  init: xnn_init_f32_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1
+- name: xnn_bf16_f32_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin
+  init: xnn_init_f32_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1
+
+# RISC-V Zvfbfa (BF16 widening FMA via vfwmacc.vf under altfmt=1)
+- name: xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfa
+  init: xnn_init_f32_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1
+- name: xnn_bf16_f32_gemm_minmax_ukernel_4x4v__rvv_zvfbfa
+  init: xnn_init_f32_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1

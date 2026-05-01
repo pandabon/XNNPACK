@@ -16,7 +16,7 @@
 #include <windows.h>
 #elif XNN_PLATFORM_MACOS || XNN_PLATFORM_IOS
 #include <dispatch/dispatch.h>
-#else
+#elif XNN_HAS_PTHREADS
 #include <pthread.h>
 #endif
 
@@ -30,6 +30,8 @@ struct xnn_mutex {
 #elif XNN_PLATFORM_MACOS || XNN_PLATFORM_IOS
   dispatch_semaphore_t semaphore;
 #elif XNN_PLATFORM_WEB && !defined(__EMSCRIPTEN_PTHREADS__)
+  char _;  // Dummy member variable to comply with the C standard
+#elif !XNN_HAS_PTHREADS
   char _;  // Dummy member variable to comply with the C standard
 #else
   pthread_mutex_t mutex;

@@ -104,3 +104,35 @@
   init: xnn_init_bf16_minmax_scalar_params
   pack: xnn_pack_f16_gemm_goi_w
   k-block: 8
+
+# RISC-V Zvfbfmin (BF16 widen + base-V FMA + BF16 narrow on output).
+# Bias is FP32 in the packed buffer (matches xnn_x16_x32_packw_x4v__rvv_u8).
+- name: xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin
+  init: xnn_init_bf16_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1
+- name: xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin
+  init: xnn_init_bf16_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1
+
+# RISC-V Zvfbfa (BF16 widening FMA via vfwmacc.vf under altfmt=1)
+- name: xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfa
+  init: xnn_init_bf16_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1
+- name: xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfa
+  init: xnn_init_bf16_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1
+
+# RISC-V combined Zvfbfmin+Zvfbfa (zvfbfa vfwmacc.vf inner loop +
+# zvfbfmin vfncvtbf16.f.f.w narrow).
+- name: xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin_zvfbfa
+  init: xnn_init_bf16_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1
+- name: xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin_zvfbfa
+  init: xnn_init_bf16_minmax_scalar_params
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  k-block: 1

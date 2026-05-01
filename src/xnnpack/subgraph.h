@@ -421,8 +421,10 @@ typedef uint64_t xnn_timestamp;
 typedef double xnn_timestamp;
 #elif XNN_PLATFORM_WINDOWS
 typedef LARGE_INTEGER xnn_timestamp;
-#else
+#elif XNN_HAS_PTHREADS
 typedef struct timespec xnn_timestamp;
+#else
+typedef uint64_t xnn_timestamp;
 #endif
 
 struct xnn_operator_data {

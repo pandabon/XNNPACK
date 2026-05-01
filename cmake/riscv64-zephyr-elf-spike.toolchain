@@ -1,0 +1,138 @@
+# CMake toolchain for cross-compiling XNNPACK with the Zephyr SDK
+# riscv64-zephyr-elf-gcc and running test/bench binaries on bare-metal
+# spike. The HTIF runtime (crt.S + syscalls.c + link.ld) lives in
+# cmake/htif/ and is self-contained — no external lab/runtime sources.
+#
+# Required env or -D:
+#   RISCV_TOOLCHAIN_ROOT   Zephyr-SDK-style toolchain root (its bin/ has
+#                          ${RISCV_TOOLCHAIN_PREFIX}-gcc).
+#
+# Optional:
+#   RISCV_TOOLCHAIN_PREFIX Default: riscv64-zephyr-elf
+#   RISCV_MARCH            Default: rv64gcv_zvfbfmin
+#                          Zvfbfa is reached via .insn / .option in source.
+#   RISCV_MABI             Default: lp64d
+#   SPIKE_BIN              Default: spike (from PATH)
+#   SPIKE_ISA              Default: rv64gcv_zicntr_zfbfmin_zvfbfmin_zvfbfa
+#   SPIKE_VLEN             If set (128 / 256 / 512 / 1024 / ...), appends
+#                          `_zvl${N}b` to SPIKE_ISA so spike runs the
+#                          binary at that vector length. Default: unset
+#                          (spike picks its built-in default, typically
+#                          VLEN=128). Binaries are VLEN-agnostic, so one
+#                          build sweeps any VLEN by re-`ctest`ing with a
+#                          different SPIKE_VLEN.
+
+MACRO(_xnn_resolve var default)
+  IF(NOT DEFINED ${var})
+    IF(DEFINED ENV{${var}})
+      SET(${var} "$ENV{${var}}" CACHE STRING "${var} (from env)")
+    ELSEIF(NOT "${default}" STREQUAL "")
+      SET(${var} "${default}" CACHE STRING "${var} (default)")
+    ENDIF()
+  ELSE()
+    SET(${var} "${${var}}" CACHE STRING "${var}")
+  ENDIF()
+ENDMACRO()
+
+_xnn_resolve(RISCV_TOOLCHAIN_ROOT   "")
+_xnn_resolve(RISCV_TOOLCHAIN_PREFIX "riscv64-zephyr-elf")
+_xnn_resolve(RISCV_MARCH            "rv64gcv_zvfbfmin")
+_xnn_resolve(RISCV_MABI             "lp64d")
+_xnn_resolve(SPIKE_BIN              "spike")
+_xnn_resolve(SPIKE_ISA              "rv64gcv_zicntr_zfbfmin_zvfbfmin_zvfbfa")
+_xnn_resolve(SPIKE_VLEN             "")
+IF(SPIKE_VLEN)
+  SET(SPIKE_ISA "${SPIKE_ISA}_zvl${SPIKE_VLEN}b" CACHE STRING "SPIKE_ISA with VLEN" FORCE)
+ENDIF()
+
+IF(NOT RISCV_TOOLCHAIN_ROOT)
+  MESSAGE(FATAL_ERROR
+    "RISCV_TOOLCHAIN_ROOT must be set (env or -D). Point it at the "
+    "toolchain root whose bin/ contains ${RISCV_TOOLCHAIN_PREFIX}-gcc.")
+ENDIF()
+
+SET(CMAKE_SYSTEM_NAME      Generic)
+SET(CMAKE_SYSTEM_PROCESSOR riscv64)
+SET(CMAKE_CROSSCOMPILING   TRUE)
+
+SET(_TC_BIN "${RISCV_TOOLCHAIN_ROOT}/bin/${RISCV_TOOLCHAIN_PREFIX}")
+SET(CMAKE_C_COMPILER       "${_TC_BIN}-gcc")
+SET(CMAKE_ASM_COMPILER     "${_TC_BIN}-gcc")
+SET(CMAKE_CXX_COMPILER     "${_TC_BIN}-g++")
+SET(CMAKE_AR               "${_TC_BIN}-ar"      CACHE FILEPATH "ar")
+SET(CMAKE_RANLIB           "${_TC_BIN}-ranlib"  CACHE FILEPATH "ranlib")
+SET(CMAKE_OBJCOPY          "${_TC_BIN}-objcopy" CACHE FILEPATH "objcopy")
+SET(CMAKE_OBJDUMP          "${_TC_BIN}-objdump" CACHE FILEPATH "objdump")
+
+SET(CMAKE_FIND_ROOT_PATH         "${RISCV_TOOLCHAIN_ROOT}/${RISCV_TOOLCHAIN_PREFIX}")
+SET(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+SET(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+SET(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+SET(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+# CMake's compiler probe builds a tiny ELF; with bare-metal newlib the
+# link step needs the HTIF runtime, so make the probe a static library
+# instead.
+SET(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+# XNNPACK pins CMAKE_C_STANDARD=99 with C_EXTENSIONS=NO. Force GNU
+# extensions on (we use __asm__ already, but XNNPack and gtest both want
+# misc GNU bits).
+SET(CMAKE_C_EXTENSIONS   ON)
+SET(CMAKE_CXX_EXTENSIONS ON)
+
+SET(_TARGET_FLAGS "-march=${RISCV_MARCH} -mabi=${RISCV_MABI} -mcmodel=medany")
+SET(CMAKE_C_FLAGS_INIT   "${_TARGET_FLAGS}")
+SET(CMAKE_CXX_FLAGS_INIT "${_TARGET_FLAGS}")
+SET(CMAKE_ASM_FLAGS_INIT "${_TARGET_FLAGS}")
+
+# gcc's printf/puts builtins transform `printf("hello\n")` into puts(),
+# which requires the libc-default `stdout` symbol. Disable so our HTIF
+# write path stays the only sink.
+ADD_COMPILE_OPTIONS(-fno-builtin-printf -fno-builtin-puts)
+
+# gtest sees pthreads/file-system/stream-redirection unavailable on
+# this bare-metal target.
+ADD_COMPILE_DEFINITIONS(
+    GTEST_HAS_PTHREAD=0
+    GTEST_HAS_FILE_SYSTEM=0
+    GTEST_HAS_STREAM_REDIRECTION=0
+)
+# Several gtest .cc files unconditionally fall back to _POSIX_PATH_MAX
+# which newlib doesn't define. Provide a sane PATH_MAX so the
+# `defined(PATH_MAX)` branch wins.
+ADD_COMPILE_DEFINITIONS(PATH_MAX=4096)
+
+# Expose newlib's POSIX-2008-ish symbols (localtime_r, etc.) that
+# libstdc++/gtest reach for.
+ADD_COMPILE_DEFINITIONS(_POSIX_C_SOURCE=200809L __POSIX_VISIBLE=200809L)
+
+# CMake's find_package(Threads) auto-finds -lpthreads even on this
+# pthread-less newlib. Pre-populate so Threads::Threads (created in the
+# project hook) is a no-op.
+SET(CMAKE_THREAD_LIBS_INIT      ""   CACHE STRING "" FORCE)
+SET(CMAKE_HAVE_THREADS_LIBRARY  1    CACHE STRING "" FORCE)
+SET(CMAKE_USE_WIN32_THREADS_INIT 0   CACHE STRING "" FORCE)
+SET(CMAKE_USE_PTHREADS_INIT     0    CACHE STRING "" FORCE)
+SET(THREADS_PREFER_PTHREAD_FLAG OFF  CACHE BOOL   "" FORCE)
+SET(Threads_FOUND               TRUE CACHE BOOL   "" FORCE)
+
+# Link line: our linker script + -nostartfiles (crt.S supplies _start)
+# + -static.
+GET_FILENAME_COMPONENT(_TC_DIR "${CMAKE_CURRENT_LIST_FILE}" DIRECTORY)
+SET(HTIF_DIR "${_TC_DIR}/htif" CACHE PATH "Self-contained HTIF runtime")
+SET(_LINK_HTIF "-T ${HTIF_DIR}/link.ld -nostartfiles -static")
+SET(CMAKE_EXE_LINKER_FLAGS_INIT "${_LINK_HTIF}")
+
+# Project hook adds htif-runtime to every executable.
+SET(CMAKE_PROJECT_INCLUDE
+    "${_TC_DIR}/riscv64-zephyr-elf-spike-project-hook.cmake")
+
+# Spike emulator wiring (used by ctest).
+SET(CMAKE_CROSSCOMPILING_EMULATOR "${SPIKE_BIN};--isa=${SPIKE_ISA}")
+
+MESSAGE(STATUS "RISC-V toolchain: ${_TC_BIN}-gcc")
+MESSAGE(STATUS "RISC-V march:     ${RISCV_MARCH}")
+MESSAGE(STATUS "RISC-V mabi:      ${RISCV_MABI}")
+MESSAGE(STATUS "HTIF runtime:     ${HTIF_DIR}")
+MESSAGE(STATUS "Spike emulator:   ${CMAKE_CROSSCOMPILING_EMULATOR}")

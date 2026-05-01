@@ -9,12 +9,15 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
-#include <pthread.h>
 #include <stdbool.h>
 #endif
 
 #include "include/xnnpack.h"
 #include "src/xnnpack/common.h"
+
+#if !defined(_WIN32) && XNN_HAS_PTHREADS
+#include <pthread.h>
+#endif
 
 #if XNN_PLATFORM_WINDOWS
 

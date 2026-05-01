@@ -19,7 +19,7 @@
 #include <windows.h>
 #elif XNN_PLATFORM_MACOS || XNN_PLATFORM_IOS
 #include <dispatch/dispatch.h>
-#else
+#elif XNN_HAS_PTHREADS
 #include <pthread.h>
 #endif
 
@@ -39,7 +39,7 @@ enum xnn_status xnn_mutex_init(struct xnn_mutex* mutex) {
     xnn_log_error("failed to initialize mutex");
     return xnn_status_out_of_memory;
   }
-#elif !XNN_PLATFORM_WEB || defined(__EMSCRIPTEN_PTHREADS__)
+#elif XNN_HAS_PTHREADS && (!XNN_PLATFORM_WEB || defined(__EMSCRIPTEN_PTHREADS__))
   const int ret = pthread_mutex_init(&mutex->mutex, NULL);
   if (ret != 0) {
     xnn_log_error("failed to initialize mutex, error code: %d", ret);
@@ -62,7 +62,7 @@ enum xnn_status xnn_mutex_lock(struct xnn_mutex* mutex) {
     xnn_log_error("failed to lock mutex, error code: %d", wait_result);
     return xnn_status_invalid_state;
   }
-#elif !XNN_PLATFORM_WEB || defined(__EMSCRIPTEN_PTHREADS__)
+#elif XNN_HAS_PTHREADS && (!XNN_PLATFORM_WEB || defined(__EMSCRIPTEN_PTHREADS__))
   const int ret = pthread_mutex_lock(&mutex->mutex);
   if (ret != 0) {
     xnn_log_error("failed to lock mutex, error code: %d", ret);
@@ -80,7 +80,7 @@ enum xnn_status xnn_mutex_unlock(struct xnn_mutex* mutex) {
   }
 #elif XNN_PLATFORM_MACOS || XNN_PLATFORM_IOS
   dispatch_semaphore_signal(mutex->semaphore);
-#elif !XNN_PLATFORM_WEB || defined(__EMSCRIPTEN_PTHREADS__)
+#elif XNN_HAS_PTHREADS && (!XNN_PLATFORM_WEB || defined(__EMSCRIPTEN_PTHREADS__))
   const int ret = pthread_mutex_unlock(&mutex->mutex);
   if (ret != 0) {
     xnn_log_error("failed to unlock mutex, error code: %d", ret);
@@ -98,7 +98,7 @@ enum xnn_status xnn_mutex_destroy(struct xnn_mutex* mutex) {
   }
 #elif XNN_PLATFORM_MACOS || XNN_PLATFORM_IOS
   dispatch_release(mutex->semaphore);
-#elif !XNN_PLATFORM_WEB || defined(__EMSCRIPTEN_PTHREADS__)
+#elif XNN_HAS_PTHREADS && (!XNN_PLATFORM_WEB || defined(__EMSCRIPTEN_PTHREADS__))
   const int ret = pthread_mutex_destroy(&mutex->mutex);
   if (ret != 0) {
     xnn_log_error("failed to destroy mutex, error code: %d", ret);

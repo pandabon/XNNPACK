@@ -960,12 +960,14 @@ static xnn_timestamp xnn_read_timer() {
     xnn_log_error("QueryPerformanceCounter failed: error code %u", GetLastError());
     memset(&timestamp, 0, sizeof(timestamp));
   }
-#else
+#elif XNN_HAS_PTHREADS
   int res = clock_gettime(CLOCK_MONOTONIC, &timestamp);
   if (res != 0) {
     xnn_log_error("clock_gettime failed: error code %d", errno);
     memset(&timestamp, 0, sizeof(timestamp));
   }
+#else
+  memset(&timestamp, 0, sizeof(timestamp));
 #endif
   return timestamp;
 }
@@ -986,12 +988,16 @@ static inline uint64_t xnn_get_elapsed_time(const xnn_timestamp* start, const xn
     return 0;
   }
   return ((end->QuadPart - start->QuadPart) * kMicrosInSec) / frequency.QuadPart;
-#else
+#elif XNN_HAS_PTHREADS
   const uint64_t kNanosInMicro = UINT64_C(1000);
   const uint64_t kNanosInSec = UINT64_C(1000000000);
   const uint64_t secs = (end->tv_sec - start->tv_sec) * kNanosInSec;
   const uint64_t ns_secs = (end->tv_nsec - start->tv_nsec);
   return (secs + ns_secs) / kNanosInMicro;
+#else
+  (void) start;
+  (void) end;
+  return 0;
 #endif
 }
 

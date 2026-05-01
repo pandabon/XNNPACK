@@ -3346,6 +3346,71 @@ void GemmMicrokernelTester::Test(xnn_bf16_gemm_minmax_ukernel_fn gemm_minmax,
   }
 }
 
+void GemmMicrokernelTester::Test(xnn_bf16_gemm_minmax_ukernel_fn gemm_minmax,
+                                 xnn_init_bf16_minmax_params_fn init_params,
+                                 xnn_pack_bf16_f32_gemm_fn pack) const {
+  ASSERT_LE(m(), mr());
+  ASSERT_GE(a_stride(), k());
+  ASSERT_GE(cm_stride(), n());
+
+  xnnpack::ReplicableRandomDevice rng;
+  auto f32rng = std::bind(std::uniform_real_distribution<float>(-1.0f, 1.0f),
+                          std::ref(rng));
+
+  xnnpack::Buffer<xnn_bfloat16> a((m() - 1) * a_stride() + k(),
+                                  xnnpack::XnnExtraBytes);
+  xnnpack::Buffer<xnn_bfloat16> b(n() * k());
+  // Packed buffer must hold NR fp32 bias (= 2*NR u16) + NR*KC bf16 weights
+  // per NR-tile, so size in bf16 units is packed_n() * (packed_k() + 2).
+  xnnpack::Buffer<xnn_bfloat16, XNN_ALLOCATION_ALIGNMENT> packed_w(
+      packed_n() * packed_k() + 2 * packed_n());
+  xnnpack::Buffer<float> bias(n());
+  xnnpack::Buffer<xnn_bfloat16> c((m() - 1) * cm_stride() + n());
+  xnnpack::Buffer<float> c_ref(m() * n());
+
+  std::generate(a.begin(), a.end(), [&] { return f32rng(rng); });
+  std::generate(b.begin(), b.end(), [&] { return f32rng(rng); });
+  std::generate(bias.begin(), bias.end(), [&] { return f32rng(rng); });
+  std::fill(c_ref.begin(), c_ref.end(), 0.0f);
+
+  std::fill(packed_w.begin(), packed_w.end(), static_cast<xnn_bfloat16>(0.0f));
+  pack(/*g=*/1, n(), k(), nr(), kr(), sr(), b.data(), bias.data(),
+       /*scale=*/nullptr, packed_w.data(),
+       /*extra_bytes=*/0, /*params=*/nullptr);
+
+  for (size_t m_index = 0; m_index < m(); m_index++) {
+    for (size_t n_index = 0; n_index < n(); n_index++) {
+      c_ref[m_index * n() + n_index] = bias[n_index];
+      for (size_t k_index = 0; k_index < k(); k_index++) {
+        c_ref[m_index * n() + n_index] +=
+            a[m_index * a_stride() + k_index] * b[n_index * k() + k_index];
+      }
+    }
+  }
+
+  xnn_bf16_minmax_params params;
+  init_params(&params, min(), max());
+
+  for (float& c_value : c_ref) {
+    c_value = std::max(std::min(c_value, max()), min());
+  }
+
+  gemm_minmax(m(), n(), k() * sizeof(xnn_bfloat16), a.data(),
+              a_stride() * sizeof(xnn_bfloat16), packed_w.data(), c.data(),
+              cm_stride() * sizeof(xnn_bfloat16), nr() * sizeof(xnn_bfloat16),
+              &params);
+
+  for (size_t i = 0; i < m(); i++) {
+    for (size_t j = 0; j < n(); j++) {
+      ASSERT_NEAR(c[i * cm_stride() + j], c_ref[i * n() + j],
+                  std::max(1.0e-4f, std::abs(c_ref[i * n() + j]) * 3.0e-2f))
+          << "at " << i << ", " << j << ": Mr x Nr x Kr = " << mr() << " x "
+          << nr() << " x " << kr() << ", M x N x K = " << m() << " x " << n()
+          << " x " << k();
+    }
+  }
+}
+
 void GemmMicrokernelTester::Test(xnn_f16_gemm_minmax_ukernel_fn gemm_minmax,
                                  xnn_init_f16_minmax_params_fn init_params,
                                  xnn_pack_f16_gemm_fn pack) const {

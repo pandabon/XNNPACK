@@ -125,6 +125,7 @@ SET(MICROKERNEL_UNIT_TESTS
     u8-ibilinear
     u8-lut32norm
     x16-packw
+    x16-x32-packw
     x32-packw
     x32-packx
     x32-unpool
@@ -186,6 +187,7 @@ SHARD_TEST(qs8-dwconv-minmax-fp32-test 10)
 SHARD_TEST(qs8-qc8w-dwconv-minmax-fp32-test 10)
 
 SET(MICROKERNEL_GEMM_UNIT_TESTS
+    bf16-f32-gemm-minmax
     bf16-gemm-minmax
     f16-f32acc-gemm-minmax
     f16-f32acc-igemm-minmax
