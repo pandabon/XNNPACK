@@ -352,7 +352,29 @@ static void init_bf16_f32_gemm_config(void) {
   const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
   assert(hardware_config != NULL);
   (void) hardware_config;
-  if (hardware_config->arch_flags & xnn_arch_riscv_zvfbfa) {
+  if ((hardware_config->arch_flags & (xnn_arch_riscv_zvfbfmin | xnn_arch_riscv_zvfbfa))
+      == (xnn_arch_riscv_zvfbfmin | xnn_arch_riscv_zvfbfa)) {
+    // Both flags: gemm uses the existing zvfbfa-only kernel (combined
+    // bf16-f32-gemm would be byte-identical, so we don't ship one);
+    // igemm uses the new combined-extension kernel which requires both
+    // flags at runtime.
+    bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(1)] =
+        XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfa);
+    bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(4)] =
+        XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_4x4v__rvv_zvfbfa);
+    bf16_f32_gemm_config.minmax.igemm[XNN_MR_TO_INDEX(1)] =
+        XNN_INIT_HMP_IGEMM_UKERNEL(xnn_bf16_f32_igemm_minmax_ukernel_1x4v__rvv_zvfbfmin_zvfbfa);
+    bf16_f32_gemm_config.minmax.igemm[XNN_MR_TO_INDEX(4)] =
+        XNN_INIT_HMP_IGEMM_UKERNEL(xnn_bf16_f32_igemm_minmax_ukernel_4x4v__rvv_zvfbfmin_zvfbfa);
+    bf16_f32_gemm_config.init.f32 = xnn_init_f32_minmax_scalar_params;
+    bf16_f32_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn)
+        xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8;
+    bf16_f32_gemm_config.pack_igemm_goki = (xnn_pack_conv_goki_w_fn) xnn_pack_bf16_f32_conv_goki_w;
+    bf16_f32_gemm_config.pack_igemm_kgo = (xnn_pack_conv_kgo_w_fn) xnn_pack_bf16_f32_conv_kgo_w;
+    bf16_f32_gemm_config.mr = 4;
+    bf16_f32_gemm_config.nr = hardware_config->vlenb;
+    bf16_f32_gemm_config.log2_kr = 0;
+  } else if (hardware_config->arch_flags & xnn_arch_riscv_zvfbfa) {
     bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(1)] =
         XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv_zvfbfa);
     bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(4)] =
@@ -391,9 +413,15 @@ static void init_bf16_gemm_config(void) {
         XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_gemm_minmax_ukernel_1x4v__rvv_zvfbfmin_zvfbfa);
     bf16_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(4)] =
         XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_gemm_minmax_ukernel_4x4v__rvv_zvfbfmin_zvfbfa);
+    bf16_gemm_config.minmax.igemm[XNN_MR_TO_INDEX(1)] =
+        XNN_INIT_HMP_IGEMM_UKERNEL(xnn_bf16_igemm_minmax_ukernel_1x4v__rvv_zvfbfmin_zvfbfa);
+    bf16_gemm_config.minmax.igemm[XNN_MR_TO_INDEX(4)] =
+        XNN_INIT_HMP_IGEMM_UKERNEL(xnn_bf16_igemm_minmax_ukernel_4x4v__rvv_zvfbfmin_zvfbfa);
     bf16_gemm_config.init.bf16 = xnn_init_bf16_minmax_scalar_params;
     bf16_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn)
         xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u8;
+    bf16_gemm_config.pack_igemm_goki = (xnn_pack_conv_goki_w_fn) xnn_pack_bf16_f32_conv_goki_w;
+    bf16_gemm_config.pack_igemm_kgo = (xnn_pack_conv_kgo_w_fn) xnn_pack_bf16_f32_conv_kgo_w;
     bf16_gemm_config.mr = 4;
     bf16_gemm_config.nr = hardware_config->vlenb;
     bf16_gemm_config.log2_kr = 0;

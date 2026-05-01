@@ -16,11 +16,13 @@
 #include "src/xnnpack/microfnptr.h"
 #include "src/xnnpack/microparams-init.h"
 
+static struct xnn_maxpool_config bf16_maxpool_config = {0};
 static struct xnn_maxpool_config f16_maxpool_config = {0};
 static struct xnn_maxpool_config f32_maxpool_config = {0};
 static struct xnn_maxpool_config s8_maxpool_config = {0};
 static struct xnn_maxpool_config u8_maxpool_config = {0};
 
+XNN_INIT_ONCE_GUARD(bf16_maxpool);
 XNN_INIT_ONCE_GUARD(f16_maxpool);
 XNN_INIT_ONCE_GUARD(f32_maxpool);
 XNN_INIT_ONCE_GUARD(s8_maxpool);
@@ -30,6 +32,18 @@ XNN_INIT_ONCE_GUARD(u8_maxpool);
 #define XNN_INIT_MAXPOOL_UKERNEL(ukernel) \
   (xnn_maxpool_ukernel_fn) ukernel;       \
   xnn_log_info("Using maxpool microkernel '%s'.", #ukernel);
+
+static void init_bf16_maxpool_config(void) {
+  #if XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR && XNN_ENABLE_RISCV_ZVFBFMIN && XNN_ENABLE_RISCV_ZVFBFA
+    const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+    assert(hardware_config != NULL);
+    if ((hardware_config->arch_flags & (xnn_arch_riscv_zvfbfmin | xnn_arch_riscv_zvfbfa))
+        == (xnn_arch_riscv_zvfbfmin | xnn_arch_riscv_zvfbfa)) {
+      bf16_maxpool_config.ukernel = XNN_INIT_MAXPOOL_UKERNEL(xnn_bf16_maxpool_minmax_ukernel_9p__rvv_zvfbfmin_zvfbfa_u1v);
+      bf16_maxpool_config.init.bf16 = xnn_init_bf16_minmax_scalar_params;
+    }
+  #endif
+}
 
 static void init_f16_maxpool_config(void) {
   #if XNN_ARCH_ARM && XNN_ENABLE_ARM_FP16_VECTOR && XNN_ENABLE_ARM_FP16_SCALAR
@@ -145,6 +159,15 @@ static void init_u8_maxpool_config(void) {
     u8_maxpool_config.ukernel = XNN_INIT_MAXPOOL_UKERNEL(xnn_u8_maxpool_minmax_ukernel_9p__scalar_u1);
     u8_maxpool_config.init.u8 = xnn_init_u8_minmax_scalar_params;
   #endif
+}
+
+const struct xnn_maxpool_config* xnn_init_bf16_maxpool_config() {
+  const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+  if (hardware_config == NULL) {
+    return NULL;
+  }
+  XNN_INIT_ONCE(bf16_maxpool);
+  return &bf16_maxpool_config;
 }
 
 const struct xnn_maxpool_config* xnn_init_f16_maxpool_config() {

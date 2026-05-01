@@ -390,6 +390,7 @@ XNN_INTERNAL const struct xnn_gemm_config* xnn_init_qs8_qc4w_gemm_config();
 XNN_INTERNAL const struct xnn_gemm_config* xnn_init_qs8_qc8w_gemm_config();
 XNN_INTERNAL const struct xnn_gemm_config* xnn_init_qu8_gemm_config();
 
+XNN_INTERNAL const struct xnn_maxpool_config* xnn_init_bf16_maxpool_config();
 XNN_INTERNAL const struct xnn_maxpool_config* xnn_init_f16_maxpool_config();
 XNN_INTERNAL const struct xnn_maxpool_config* xnn_init_f32_maxpool_config();
 XNN_INTERNAL const struct xnn_maxpool_config* xnn_init_s8_maxpool_config();

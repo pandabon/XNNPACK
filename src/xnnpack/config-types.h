@@ -205,6 +205,7 @@ struct xnn_maxpool_config {
     xnn_init_u8_minmax_params_fn u8;
     xnn_init_f32_minmax_params_fn f32;
     xnn_init_f16_minmax_params_fn f16;
+    xnn_init_bf16_minmax_params_fn bf16;
   } init;
 };
 
