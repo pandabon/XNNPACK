@@ -40,9 +40,11 @@
 
 #if XNN_ARCH_RISCV
 #include <inttypes.h>
+#if !defined(__ZEPHYR__)
 #include <sys/auxv.h>
 
 #define COMPAT_HWCAP_ISA_V (1 << ('V' - 'A'))
+#endif
 #endif
 
 #if XNN_ARCH_PPC64
@@ -140,7 +142,7 @@ static bool cpuinfo_uarch_to_dot(enum cpuinfo_uarch uarch) {
 }
 #endif  // XNN_ENABLE_CPUINFO && XNN_ARCH_ARM
 
-#if XNN_ARCH_RISCV
+#if XNN_ARCH_RISCV && !defined(__ZEPHYR__)
 
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -184,7 +186,7 @@ static bool supports_rvv_fp16() {
     /* Fallback: System call not supported or failed */
     return false;
 }
-#endif  // XNN_ARCH_RISCV
+#endif  // XNN_ARCH_RISCV && !__ZEPHYR__
 
 static struct xnn_hardware_config hardware_config = {0};
 
@@ -340,6 +342,22 @@ static void init_hardware_config(void) {
 #endif  // XNN_ARCH_HEXAGON
 
   #if XNN_ARCH_RISCV
+    #if defined(__ZEPHYR__)
+      // Bare-metal/Zephyr has no getauxval() and no riscv_hwprobe syscall. The ISA is fixed at
+      // build time instead: the compiler defines __riscv_vector (-march=...v...) and
+      // __riscv_zvfh. Only the vector length (vlenb) is read from the hardware, below.
+      #if defined(__riscv_vector)
+        const bool use_riscv_vector = true;
+      #else
+        const bool use_riscv_vector = false;
+      #endif
+      set_arch_flag(xnn_arch_riscv_vector, use_riscv_vector);
+      #if defined(__riscv_zvfh)
+        set_arch_flag(xnn_arch_riscv_vector_fp16_arith, XNN_ENABLE_RISCV_FP16_VECTOR);
+      #else
+        set_arch_flag(xnn_arch_riscv_vector_fp16_arith, false);
+      #endif
+    #else
     // TODO: Use cpuinfo when fp16 detect works
     const long hwcap = getauxval(AT_HWCAP);
     xnn_log_debug("getauxval(AT_HWCAP) = %08lX", hwcap);
@@ -347,6 +365,7 @@ static void init_hardware_config(void) {
     set_arch_flag(xnn_arch_riscv_vector, use_riscv_vector);
 
     set_arch_flag(xnn_arch_riscv_vector_fp16_arith, XNN_ENABLE_RISCV_FP16_VECTOR && supports_rvv_fp16());
+    #endif
 
     if (use_riscv_vector) {
       register uint32_t vlenb __asm__ ("t0");
