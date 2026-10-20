@@ -42,6 +42,12 @@
 #include "src/xnnpack/params.h"
 #include <pthreadpool.h>
 
+#if defined(__ZEPHYR__)
+// <pthread.h> on Zephyr pulls in <zephyr/kernel.h>, whose clamp() macro would break the
+// function below.
+#undef clamp
+#endif
+
 static float clamp(const float value, const float minimum, const float maximum) {
   const float a = minimum <= value ? value : minimum;
   return maximum >= a ? a : maximum;
