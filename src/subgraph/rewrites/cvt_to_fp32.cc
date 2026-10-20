@@ -333,6 +333,38 @@ OpAction GetOpActionBf16(const xnn_subgraph_t subgraph, const xnn_node& node) {
       }
       break;
     }
+    case xnn_node_type_fully_connected:
+    case xnn_node_type_batch_matrix_multiply: {
+      // The native bf16 GEMM computes bf16 x bf16 -> fp32 (fully_connected_nc_bf16_f32 and
+      // batch_matrix_multiply_nc_bf16_f32). The header comment of this function says these stay native "when
+      // their configs are available", but at this XNNPACK commit nothing here implements that, so every bf16
+      // GEMM was rewritten to an fp32 GEMM (weights converted to fp32 at create time, ~2x memory, no bf16
+      // kernel ever selected).
+      // Keep the node native when the bf16_f32 config has a kernel, the output is already fp32, and every
+      // activation input is bf16 (or was rewritten to fp32 by an earlier node: kNeedsXF16Inputs converts such
+      // inputs back to bf16). The weights of a fully connected must be bf16 themselves.
+      const xnn_value& output = subgraph->values[node.outputs[0]];
+      if (output.datatype != xnn_datatype_fp32 ||
+          !IsValid(xnn_init_bf16_f32_gemm_config())) {
+        break;
+      }
+      auto IsBf16Activation = [subgraph](uint32_t id) {
+        const xnn_value& v = subgraph->values[id];
+        return v.datatype == xnn_datatype_bf16 ||
+               (v.datatype == xnn_datatype_fp32 &&
+                v.to_fp32_fallback.was_overwritten);
+      };
+      bool ok = IsBf16Activation(node.inputs[0]);
+      if (node.type == xnn_node_type_fully_connected) {
+        ok = ok && subgraph->values[node.inputs[1]].datatype == xnn_datatype_bf16;
+      } else {
+        ok = ok && IsBf16Activation(node.inputs[1]);
+      }
+      if (ok) {
+        return OpAction::kNeedsXF16Inputs;
+      }
+      break;
+    }
     case xnn_node_type_static_reduce_max:
       if (IsValid(xnn_init_bf16_rmax_config())) {
         return OpAction::kTransparent;
