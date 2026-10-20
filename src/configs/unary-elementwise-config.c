@@ -186,6 +186,15 @@ static void init_bf16_to_f32_cvt_config(void) {
       bf16_to_f32_cvt_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_bf16_f32_vcvt_ukernel__scalar_u2);
       bf16_to_f32_cvt_config.element_tile = 2;
     }
+  #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+    const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+    if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+      bf16_to_f32_cvt_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_bf16_f32_vcvt_ukernel__rvv_u4v);
+      bf16_to_f32_cvt_config.element_tile = 4 * hardware_config->vlenb / sizeof(float);
+    } else {
+      bf16_to_f32_cvt_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_bf16_f32_vcvt_ukernel__scalar_u2);
+      bf16_to_f32_cvt_config.element_tile = 2;
+    }
   #else
     bf16_to_f32_cvt_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_bf16_f32_vcvt_ukernel__scalar_u2);
     bf16_to_f32_cvt_config.element_tile = 2;
@@ -3184,6 +3193,15 @@ static void init_f32_to_bf16_cvt_config(void) {
       } else
     #endif
     {
+      f32_to_bf16_cvt_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_f32_bf16_vcvt_ukernel__scalar_u2);
+      f32_to_bf16_cvt_config.element_tile = 2;
+    }
+  #elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+    const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+    if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+      f32_to_bf16_cvt_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_f32_bf16_vcvt_ukernel__rvv_u4v);
+      f32_to_bf16_cvt_config.element_tile = 4 * hardware_config->vlenb / sizeof(float);
+    } else {
       f32_to_bf16_cvt_config.ukernel = XNN_INIT_UNARY_UKERNEL(xnn_f32_bf16_vcvt_ukernel__scalar_u2);
       f32_to_bf16_cvt_config.element_tile = 2;
     }

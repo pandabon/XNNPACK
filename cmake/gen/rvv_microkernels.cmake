@@ -10,8 +10,10 @@
 
 
 SET(PROD_RVV_MICROKERNEL_SRCS
+  src/bf16-f32-vcvt/gen/bf16-f32-vcvt-rvv-u4v.c
   src/f32-argmaxpool/f32-argmaxpool-9p8x-rvv-u1v.c
   src/f32-avgpool/gen/f32-avgpool-9p-minmax-rvv-u2v.c
+  src/f32-bf16-vcvt/gen/f32-bf16-vcvt-rvv-u4v.c
   src/f32-conv-hwc2chw/f32-conv-hwc2chw-3x3s2p1c3x2v-rvv-2x2.c
   src/f32-dwconv/gen/f32-dwconv-3p8vc-minmax-rvv.c
   src/f32-dwconv/gen/f32-dwconv-3p8vc-rvv.c
@@ -149,6 +151,8 @@ SET(PROD_RVV_MICROKERNEL_SRCS
   src/x32-transposec/gen/x32-transposec-32x8-rvv.c)
 
 SET(NON_PROD_RVV_MICROKERNEL_SRCS
+  src/bf16-f32-vcvt/gen/bf16-f32-vcvt-rvv-u2v.c
+  src/f32-bf16-vcvt/gen/f32-bf16-vcvt-rvv-u2v.c
   src/f32-conv-hwc2chw/f32-conv-hwc2chw-3x3s2p1c3x2v-rvv-1x1.c
   src/f32-conv-hwc2chw/f32-conv-hwc2chw-3x3s2p1c3x2v-rvv-2x1.c
   src/f32-dwconv2d-chw/gen/f32-dwconv2d-chw-3x3p1-minmax-rvv-1x2v.c

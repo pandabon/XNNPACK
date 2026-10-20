@@ -22,6 +22,10 @@ tools/xngen src/f32-bf16-vcvt/neon.c.in -D BATCH_TILE=32 -o src/f32-bf16-vcvt/ge
 tools/xngen src/f32-bf16-vcvt/neonbf16.c.in -D BATCH_TILE=8  -o src/f32-bf16-vcvt/gen/f32-bf16-vcvt-neonbf16-u8.c &
 tools/xngen src/f32-bf16-vcvt/neonbf16.c.in -D BATCH_TILE=16 -o src/f32-bf16-vcvt/gen/f32-bf16-vcvt-neonbf16-u16.c &
 
+#################################### RISC-V V #################################
+tools/xngen src/f32-bf16-vcvt/rvv.c.in -D LMUL=2 -o src/f32-bf16-vcvt/gen/f32-bf16-vcvt-rvv-u2v.c &
+tools/xngen src/f32-bf16-vcvt/rvv.c.in -D LMUL=4 -o src/f32-bf16-vcvt/gen/f32-bf16-vcvt-rvv-u4v.c &
+
 #################################### Scalar ###################################
 tools/xngen src/f32-bf16-vcvt/scalar.c.in -D BATCH_TILE=1 -o src/f32-bf16-vcvt/gen/f32-bf16-vcvt-scalar-u1.c &
 tools/xngen src/f32-bf16-vcvt/scalar.c.in -D BATCH_TILE=2 -o src/f32-bf16-vcvt/gen/f32-bf16-vcvt-scalar-u2.c &
