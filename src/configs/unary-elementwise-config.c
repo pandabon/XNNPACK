@@ -233,6 +233,17 @@ static void init_bf16_rsqrt_config(void) {
         XNN_INIT_UNARY_UKERNEL(xnn_bf16_vrsqrt_ukernel__avx512skx_u32);
     bf16_rsqrt_config.element_tile = 32;
   }
+#elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  // Widen-to-f32 RVV kernel (plain RVV 1.0). Scalar stays as the fallback set above.
+  // element_tile = f32 elements per iteration = LMUL * vlenb / sizeof(float).
+  const struct xnn_hardware_config* hardware_config =
+      xnn_init_hardware_config();
+  assert(hardware_config != NULL);
+  if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+    bf16_rsqrt_config.ukernel =
+        XNN_INIT_UNARY_UKERNEL(xnn_bf16_vrsqrt_ukernel__rvv_u4v);
+    bf16_rsqrt_config.element_tile = 4 * hardware_config->vlenb / sizeof(float);
+  }
 #endif
 }
 
@@ -262,6 +273,17 @@ static void init_bf16_sigmoid_config(void) {
         XNN_INIT_UNARY_UKERNEL(xnn_bf16_vsigmoid_ukernel__avx512skx_u32);
     bf16_sigmoid_config.element_tile = 32;
   }
+#elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  // Widen-to-f32 RVV kernel (plain RVV 1.0). Scalar stays as the fallback set above.
+  // element_tile = f32 elements per iteration = LMUL * vlenb / sizeof(float).
+  const struct xnn_hardware_config* hardware_config =
+      xnn_init_hardware_config();
+  assert(hardware_config != NULL);
+  if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+    bf16_sigmoid_config.ukernel =
+        XNN_INIT_UNARY_UKERNEL(xnn_bf16_vsigmoid_ukernel__rvv_u2v);
+    bf16_sigmoid_config.element_tile = 2 * hardware_config->vlenb / sizeof(float);
+  }
 #endif
 }
 
@@ -290,6 +312,17 @@ static void init_bf16_sqr_config(void) {
     bf16_sqr_config.ukernel =
         XNN_INIT_UNARY_UKERNEL(xnn_bf16_vsqr_ukernel__avx512skx_u32);
     bf16_sqr_config.element_tile = 32;
+  }
+#elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  // Widen-to-f32 RVV kernel (plain RVV 1.0). Scalar stays as the fallback set above.
+  // element_tile = f32 elements per iteration = LMUL * vlenb / sizeof(float).
+  const struct xnn_hardware_config* hardware_config =
+      xnn_init_hardware_config();
+  assert(hardware_config != NULL);
+  if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+    bf16_sqr_config.ukernel =
+        XNN_INIT_UNARY_UKERNEL(xnn_bf16_vsqr_ukernel__rvv_u4v);
+    bf16_sqr_config.element_tile = 4 * hardware_config->vlenb / sizeof(float);
   }
 #endif
 }

@@ -14,8 +14,17 @@ tools/xngen src/bf16-vunary/avx512skx.c.in \
   -o src/bf16-vunary/gen/bf16-vunary-avx512skx.c &
 avx512skx_pid=$!
 
+tools/xngen src/bf16-vunary/rvv-f32acc.c.in -D LMUL=2 \
+  -o src/bf16-vunary/gen/bf16-vunary-rvv-u2v.c &
+rvv_u2v_pid=$!
+tools/xngen src/bf16-vunary/rvv-f32acc.c.in -D LMUL=4 \
+  -o src/bf16-vunary/gen/bf16-vunary-rvv-u4v.c &
+rvv_u4v_pid=$!
+
 status=0
 wait "${scalar_pid}" || status=1
 wait "${neon_pid}" || status=1
 wait "${avx512skx_pid}" || status=1
+wait "${rvv_u2v_pid}" || status=1
+wait "${rvv_u4v_pid}" || status=1
 exit "${status}"

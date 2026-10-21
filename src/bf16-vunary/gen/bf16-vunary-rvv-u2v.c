@@ -1,0 +1,223 @@
+// clang-format off
+// Auto-generated file. Do not edit!
+//   Template: src/bf16-vunary/rvv-f32acc.c.in
+//   Generator: tools/xngen
+//
+// Copyright 2026 Google LLC
+//
+// This source code is licensed under the BSD-style license found in the
+// LICENSE file in the root directory of this source tree.
+//
+// bf16 square / reciprocal-square-root / sigmoid for RISC-V Vector (plain RVV 1.0, no Zvfbf* needed).
+//
+// Sources (all in XNNPACK, BSD-style licence, commit 92a7ad501b95 unless noted):
+//  * Structure ("widen bf16 to f32, compute in f32, narrow back with round-to-nearest-even and quiet NaNs"):
+//    src/bf16-vunary/neon-f32acc.c.in, google/XNNPACK commit 1b70146d8351 (Jake Stevens, Meta, 2026).
+//  * Sigmoid math (rr2-p5 exp + division): src/f32-vsigmoid/rvv-rr2-p5-div.c.in (Google LLC 2026; the algorithm
+//    and its constants come from the earlier XNNPACK f32-vsigmoid rr2-p5 kernels, Google LLC).
+//  * Rsqrt math (vfrsqrt7 + two Newton-Raphson steps): src/f32-vrsqrt/rvv.c.in (Imagination Technologies 2024).
+//    Added here, not in the f32 kernel: lanes with x == +-0 keep the vfrsqrt7 result (+-inf), because the
+//    Newton-Raphson step would compute 0 * inf = NaN there (the bf16 special-value test expects +-inf).
+//  * Square: src/f32-vunary/rvv.c.in (Google LLC 2022).
+//  * f32 -> bf16 narrowing (vnclipu RNE + NaN fix-up): src/f32-bf16-vcvt/rvv.c.in of this fork (derived from Tencent
+//    ncnn float2bfloat_rvv(), commit 7e36d25cb153092ba87a60530455c7376fedf452, BSD-3-Clause, plus our NaN fix-up).
+//
+// Why compute in f32: the GCC 14 toolchain has no bf16 vector intrinsics, and Saturn's FP divide/compare units
+// are not bf16-aware, so bf16 is only a storage format here.
+//
+// How the widening works: a bf16 is the top 16 bits of an f32, so f32 bits = (u32) bf16 << 16. We zero-extend the
+// u16 vector to u32 (vzext.vf2, LMUL of the bf16 register is half the f32 LMUL) and shift left by 16.
+
+#include <assert.h>
+#include <math.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include <riscv_vector.h>
+
+#include "src/xnnpack/common.h"
+#include "src/xnnpack/microparams.h"
+#include "src/xnnpack/vunary.h"
+
+
+void xnn_bf16_vsqr_ukernel__rvv_u2v(
+    size_t batch,
+    const xnn_bfloat16* input,
+    xnn_bfloat16* output,
+    const struct xnn_bf16_default_params* restrict params)
+{
+  assert(batch != 0);
+  assert(batch % sizeof(xnn_bfloat16) == 0);
+  assert(input != NULL);
+  assert(output != NULL);
+
+
+  batch >>= XNN_LOG2_SIZEOF_BFLOAT16;
+
+  const uint16_t* i = (const uint16_t*) input;
+  uint16_t* o = (uint16_t*) output;
+  do {
+    const size_t vl = __riscv_vsetvl_e32m2(batch); batch -= vl;
+
+    // Load bf16, widen to f32 (zero-extend, shift left by 16).
+    const vuint16m1_t vx_bf16 = __riscv_vle16_v_u16m1(i, vl); i += vl;
+    const vuint32m2_t vx_bits = __riscv_vsll_vx_u32m2(__riscv_vzext_vf2_u32m2(vx_bf16, vl), 16, vl);
+    const vfloat32m2_t vx = __riscv_vreinterpret_v_u32m2_f32m2(vx_bits);
+
+    const vfloat32m2_t vy = __riscv_vfmul_vv_f32m2(vx, vx, vl);
+
+    // Narrow f32 -> bf16: round to nearest even (vnclipu), NaN lanes quieted and truncated
+    // (identical to src/f32-bf16-vcvt/rvv.c.in and to the scalar xnn_bfloat16_from_float).
+    const vuint32m2_t vbits = __riscv_vreinterpret_v_f32m2_u32m2(vy);
+    vuint16m1_t vy_bf16 = __riscv_vnclipu_wx_u16m1(vbits, 16, __RISCV_VXRM_RNE, vl);
+    const vuint32m2_t vabs = __riscv_vand_vx_u32m2(vbits, UINT32_C(0x7FFFFFFF), vl);
+    const vbool16_t vnan = __riscv_vmsgtu_vx_u32m2_b16(vabs, UINT32_C(0x7F800000), vl);
+    const vuint32m2_t vquiet = __riscv_vor_vx_u32m2(vbits, UINT32_C(0x00400000), vl);
+    const vuint16m1_t vnan_y = __riscv_vnsrl_wx_u16m1(vquiet, 16, vl);
+    vy_bf16 = __riscv_vmerge_vvm_u16m1(vy_bf16, vnan_y, vnan, vl);
+
+    __riscv_vse16_v_u16m1(o, vy_bf16, vl); o += vl;
+  } while (batch != 0);
+}
+
+void xnn_bf16_vrsqrt_ukernel__rvv_u2v(
+    size_t batch,
+    const xnn_bfloat16* input,
+    xnn_bfloat16* output,
+    const struct xnn_bf16_default_params* restrict params)
+{
+  assert(batch != 0);
+  assert(batch % sizeof(xnn_bfloat16) == 0);
+  assert(input != NULL);
+  assert(output != NULL);
+
+  // In the following, one Newton-Raphson step on x^{-2} - a is x_{k+1} = x_k * (1.5 - 0.5 * a * x_k^2).
+  // vfrsqrt7 is accurate to 7 bits, so f32 needs two steps (see src/f32-vrsqrt/rvv.c.in).
+  const vfloat32m2_t vonephalf = __riscv_vfmv_v_f_f32m2(1.5f, __riscv_vsetvl_e32m2(batch >> XNN_LOG2_SIZEOF_BFLOAT16));
+  const float vhalf = 0.5f;
+
+  batch >>= XNN_LOG2_SIZEOF_BFLOAT16;
+
+  const uint16_t* i = (const uint16_t*) input;
+  uint16_t* o = (uint16_t*) output;
+  do {
+    const size_t vl = __riscv_vsetvl_e32m2(batch); batch -= vl;
+
+    // Load bf16, widen to f32 (zero-extend, shift left by 16).
+    const vuint16m1_t vx_bf16 = __riscv_vle16_v_u16m1(i, vl); i += vl;
+    const vuint32m2_t vx_bits = __riscv_vsll_vx_u32m2(__riscv_vzext_vf2_u32m2(vx_bf16, vl), 16, vl);
+    const vfloat32m2_t vx = __riscv_vreinterpret_v_u32m2_f32m2(vx_bits);
+
+    const vfloat32m2_t vr7 = __riscv_vfrsqrt7_v_f32m2(vx, vl);
+    const vfloat32m2_t vx_half = __riscv_vfmul_vf_f32m2(vx, vhalf, vl);
+
+    // First Newton-Raphson iteration.
+    vfloat32m2_t vt0 = vr7;
+    vfloat32m2_t vt1 = __riscv_vfmul_vv_f32m2(vt0, vt0, vl);
+    vfloat32m2_t vt2 = __riscv_vfnmsub_vv_f32m2(vx_half, vt1, vonephalf, vl);
+    vt0 = __riscv_vfmul_vv_f32m2(vt0, vt2, vl);
+
+    // Second Newton-Raphson iteration.
+    vt1 = __riscv_vfmul_vv_f32m2(vt0, vt0, vl);
+    vt2 = __riscv_vfnmsub_vv_f32m2(vx_half, vt1, vonephalf, vl);
+    vfloat32m2_t vy = __riscv_vfmul_vv_f32m2(vt0, vt2, vl);
+
+    // Zero input: Newton-Raphson gave NaN (0 * inf); keep vfrsqrt7's signed infinity.
+    const vbool16_t vzero = __riscv_vmfeq_vf_f32m2_b16(vx, 0.0f, vl);
+    vy = __riscv_vmerge_vvm_f32m2(vy, vr7, vzero, vl);
+
+    // +infinity input: the result is 0 (and not NaN).
+    const vbool16_t vinf = __riscv_vmfeq_vf_f32m2_b16(vx, INFINITY, vl);
+    vy = __riscv_vfmerge_vfm_f32m2(vy, 0.0f, vinf, vl);
+
+    // Narrow f32 -> bf16: round to nearest even (vnclipu), NaN lanes quieted and truncated
+    // (identical to src/f32-bf16-vcvt/rvv.c.in and to the scalar xnn_bfloat16_from_float).
+    const vuint32m2_t vbits = __riscv_vreinterpret_v_f32m2_u32m2(vy);
+    vuint16m1_t vy_bf16 = __riscv_vnclipu_wx_u16m1(vbits, 16, __RISCV_VXRM_RNE, vl);
+    const vuint32m2_t vabs = __riscv_vand_vx_u32m2(vbits, UINT32_C(0x7FFFFFFF), vl);
+    const vbool16_t vnan = __riscv_vmsgtu_vx_u32m2_b16(vabs, UINT32_C(0x7F800000), vl);
+    const vuint32m2_t vquiet = __riscv_vor_vx_u32m2(vbits, UINT32_C(0x00400000), vl);
+    const vuint16m1_t vnan_y = __riscv_vnsrl_wx_u16m1(vquiet, 16, vl);
+    vy_bf16 = __riscv_vmerge_vvm_u16m1(vy_bf16, vnan_y, vnan, vl);
+
+    __riscv_vse16_v_u16m1(o, vy_bf16, vl); o += vl;
+  } while (batch != 0);
+}
+
+void xnn_bf16_vsigmoid_ukernel__rvv_u2v(
+    size_t batch,
+    const xnn_bfloat16* input,
+    xnn_bfloat16* output,
+    const struct xnn_bf16_default_params* restrict params)
+{
+  assert(batch != 0);
+  assert(batch % sizeof(xnn_bfloat16) == 0);
+  assert(input != NULL);
+  assert(output != NULL);
+
+  const float vmagic_bias = 0x1.8000FEp23f;
+  const float vminus_log2e = -0x1.715476p0f;
+  const float vln2_hi = 0x1.62E400p-1f;
+  const float vln2_lo = 0x1.7F7D1Cp-20f;
+  const float vc5 = -0x1.0F9F9Cp-7f;
+  const float vc4 = 0x1.573A1Ap-5f;
+  const float vc3 = -0x1.555A80p-3f;
+  const float vc2 = 0x1.FFFDC6p-2f;
+  const float vc1 = -0x1.FFFFF6p-1f;
+  const float vone = 1.0f;
+  const float vdenorm_cutoff = 0x1.5D589Ep+6f;
+
+  batch >>= XNN_LOG2_SIZEOF_BFLOAT16;
+
+  const uint16_t* i = (const uint16_t*) input;
+  uint16_t* o = (uint16_t*) output;
+  do {
+    const size_t vl = __riscv_vsetvl_e32m2(batch); batch -= vl;
+
+    // Load bf16, widen to f32 (zero-extend, shift left by 16).
+    const vuint16m1_t vx_bf16 = __riscv_vle16_v_u16m1(i, vl); i += vl;
+    const vuint32m2_t vx_bits = __riscv_vsll_vx_u32m2(__riscv_vzext_vf2_u32m2(vx_bf16, vl), 16, vl);
+    const vfloat32m2_t vx = __riscv_vreinterpret_v_u32m2_f32m2(vx_bits);
+
+    const vfloat32m2_t vz = __riscv_vfabs_v_f32m2(vx, vl);
+
+    vfloat32m2_t vn = __riscv_vfadd_vf_f32m2(__riscv_vfmul_vf_f32m2(vz, vminus_log2e, vl), vmagic_bias, vl);
+
+    const vfloat32m2_t vs = __riscv_vreinterpret_v_u32m2_f32m2(__riscv_vsll_vx_u32m2(__riscv_vreinterpret_v_f32m2_u32m2(vn), 23, vl));
+    vn = __riscv_vfsub_vf_f32m2(vn, vmagic_bias, vl);
+
+    vfloat32m2_t vt = __riscv_vfadd_vv_f32m2(__riscv_vfmul_vf_f32m2(vn, vln2_hi, vl), vz, vl);
+    vt = __riscv_vfmacc_vf_f32m2(vt, vln2_lo, vn, vl);
+
+    vfloat32m2_t vp = __riscv_vfadd_vf_f32m2(__riscv_vfmul_vf_f32m2(vt, vc5, vl), vc4, vl);
+    vp = __riscv_vfadd_vf_f32m2(__riscv_vfmul_vv_f32m2(vt, vp, vl), vc3, vl);
+    vp = __riscv_vfadd_vf_f32m2(__riscv_vfmul_vv_f32m2(vt, vp, vl), vc2, vl);
+    vp = __riscv_vfadd_vf_f32m2(__riscv_vfmul_vv_f32m2(vt, vp, vl), vc1, vl);
+
+    vt = __riscv_vfmul_vv_f32m2(vt, vs, vl);
+    const vfloat32m2_t ve = __riscv_vfadd_vv_f32m2(__riscv_vfmul_vv_f32m2(vt, vp, vl), vs, vl);
+    const vfloat32m2_t vd = __riscv_vfadd_vf_f32m2(ve, vone, vl);
+
+    vfloat32m2_t vy = __riscv_vfdiv_vv_f32m2(ve, vd, vl);
+
+    // |x| beyond the cutoff: sigmoid(-|x|) flushes to 0.
+    vbool16_t vmask = __riscv_vmfgt_vf_f32m2_b16(vz, vdenorm_cutoff, vl);
+    vy = __riscv_vfmerge_vfm_f32m2(vy, 0.0f, vmask, vl);
+    // x > 0: sigmoid(x) = 1 - sigmoid(-x).
+    vmask = __riscv_vmfgt_vf_f32m2_b16(vx, 0.0f, vl);
+    vy = __riscv_vfrsub_vf_f32m2_mu(vmask, vy, vy, vone, vl);
+
+    // Narrow f32 -> bf16: round to nearest even (vnclipu), NaN lanes quieted and truncated
+    // (identical to src/f32-bf16-vcvt/rvv.c.in and to the scalar xnn_bfloat16_from_float).
+    const vuint32m2_t vbits = __riscv_vreinterpret_v_f32m2_u32m2(vy);
+    vuint16m1_t vy_bf16 = __riscv_vnclipu_wx_u16m1(vbits, 16, __RISCV_VXRM_RNE, vl);
+    const vuint32m2_t vabs = __riscv_vand_vx_u32m2(vbits, UINT32_C(0x7FFFFFFF), vl);
+    const vbool16_t vnan = __riscv_vmsgtu_vx_u32m2_b16(vabs, UINT32_C(0x7F800000), vl);
+    const vuint32m2_t vquiet = __riscv_vor_vx_u32m2(vbits, UINT32_C(0x00400000), vl);
+    const vuint16m1_t vnan_y = __riscv_vnsrl_wx_u16m1(vquiet, 16, vl);
+    vy_bf16 = __riscv_vmerge_vvm_u16m1(vy_bf16, vnan_y, vnan, vl);
+
+    __riscv_vse16_v_u16m1(o, vy_bf16, vl); o += vl;
+  } while (batch != 0);
+}
+
