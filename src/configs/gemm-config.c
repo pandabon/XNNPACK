@@ -481,9 +481,9 @@ static void init_bf16_f32_gemm_config(void) {
     bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(1)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv);
     bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(7)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_7x4v__rvv);
     bf16_f32_gemm_config.init.f32 = xnn_init_f32_minmax_scalar_params;
-    // The kernels read kr = 1 packing (nr f32 biases, then one row of nr bf16 per k). The reference C packers
-    // support that layout (goi and gio); they run once when the weights are packed, not per inference.
-    bf16_f32_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn) xnn_pack_bf16_f32_gemm_goi_w;
+    // The kernels read kr = 1 packing (nr f32 biases, then one row of nr bf16 per k). goi uses the RVV packw
+    // (same layout as the reference C packer, byte for byte); gio still uses the reference C packer.
+    bf16_f32_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn) xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u4;
     bf16_f32_gemm_config.pack_gemm_gio = (xnn_packw_gemm_gio_ukernel_fn) xnn_pack_bf16_f32_gemm_gio_w;
     bf16_f32_gemm_config.mr = 7;
     bf16_f32_gemm_config.nr = 4 * hardware_config->vlenb / sizeof(float);
