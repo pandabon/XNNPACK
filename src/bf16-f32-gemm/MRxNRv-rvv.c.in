@@ -1,0 +1,129 @@
+// Copyright 2024 SiFive, Inc.
+//
+// This source code is licensed under the BSD-style license found in the
+// LICENSE file in the root directory of this source tree.
+//
+// Derived from, and structured exactly like, XNNPACK src/f32-gemm/MRxNRv-rvv.c.in
+// (Copyright 2024 SiFive, Inc.), fork pandabon/XNNPACK branch penguin @ 234f87b88.
+// The bf16 parts (widen the packed bf16 weights to f32 in registers, then use ordinary f32 FMA) follow the
+// "widen once, then f32 math" approach of OpenBLAS kernel/riscv64/sbgemm_kernel_16x8_zvl256b.c
+// @ 5137bb62b4ca (BSD-3-Clause, Copyright The OpenBLAS Project contributors), in its integer fallback
+// (USE_BF16_CVT undefined), which is the same integer widening as Tencent ncnn
+// src/layer/riscv/riscv_usability.h bfloat2float_rvv() @ 7e36d25cb153092ba87a60530455c7376fedf452
+// (Copyright 2021 Tencent, BSD-3-Clause) that our src/bf16-f32-vcvt/rvv.c.in already uses.
+//
+// How it works (for readers new to this):
+//  * A bf16 value is the top 16 bits of an f32, so widening is exact: zero-extend the 16-bit pattern to 32 bits
+//    and shift it left by 16 (vzext.vf2 + vsll). No bf16 vector extension (Zvfbfmin/Zvfbfa) is needed: only
+//    standard RVV 1.0 intrinsics, so the file keeps the plain `rvv` ISA token (-march=rv64gcv).
+//  * Packed weights layout (kr = 1, sr = 1, from xnn_pack_bf16_f32_gemm_goi_w / _gio_w): per block of nr columns,
+//    first nr f32 biases, then for every k one row of nr bf16 weights (the last block is zero-padded to nr).
+//  * A (activations) is bf16 too: one scalar load per row and k, widened with a scalar shift (a bf16 is the top half
+//    of an f32; uint32_as_float is XNNPACK's own union cast), then vfmacc.vf.
+//  * Accumulation and output are f32; the clamp to [min, max] is the same as the f32 kernel.
+
+$assert ACTIVATION in ["MINMAX"]
+$assert MR >= 1
+$assert NR in ["m2", "m4", "m8"]
+$LMUL = NR[1]
+$LMUL_16 = {"2": "1", "4": "2", "8": "4"}[LMUL]
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include <riscv_vector.h>
+
+#include "src/xnnpack/gemm.h"
+#include "src/xnnpack/math.h"
+
+
+void xnn_bf16_f32_gemm_minmax_ukernel_${MR}x${LMUL}v__rvv(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    const uint16_t* restrict a,
+    size_t a_stride,
+    const void* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t unused_cn_stride,
+    const struct xnn_f32_minmax_params* restrict params)
+{
+  assert(mr != 0);
+  assert(mr <= ${MR});
+  assert(nc != 0);
+  assert(kc != 0);
+  assert(kc % sizeof(uint16_t) == 0);
+  assert(a != NULL);
+  assert(w != NULL);
+  assert(c != NULL);
+
+  const float vmin = params->scalar.min;
+  const float vmax = params->scalar.max;
+  const uint16_t* a0 = a;
+  float* c0 = c;
+  $for M in range(1, MR):
+    const uint16_t* a${M} = (const uint16_t*) ((uintptr_t) a${M-1} + a_stride);
+    float* c${M} = (float*) ((uintptr_t) c${M-1} + cm_stride);
+    $if M % 2 == 0:
+      if XNN_UNPREDICTABLE(mr <= ${M}) {
+        a${M} = a${M-1};
+        c${M} = c${M-1};
+      }
+    $elif M + 1 == MR:
+      if XNN_UNPREDICTABLE(mr != ${M+1}) {
+        a${M} = a${M-1};
+        c${M} = c${M-1};
+      }
+    $else:
+      if XNN_UNPREDICTABLE(mr < ${M+1}) {
+        a${M} = a${M-1};
+        c${M} = c${M-1};
+      }
+
+  const size_t nr = __riscv_vsetvlmax_e32m${LMUL}();
+  size_t vl = nr;
+  do {
+    if XNN_UNLIKELY(nc < nr) {
+      vl = __riscv_vsetvl_e32m${LMUL}(nc);
+    }
+    nc = nc - vl;
+
+    // f32 biases come first in each packed block of nr columns.
+    const float* wf = (const float*) w;
+    vfloat32m${LMUL}_t vacc0 = __riscv_vle32_v_f32m${LMUL}(wf, vl);
+    const uint16_t* wh = (const uint16_t*) ((uintptr_t) w + nr * sizeof(float));
+    $for M in range(1, MR):
+      vfloat32m${LMUL}_t vacc${M} = __riscv_vmv_v_v_f32m${LMUL}(vacc0, vl);
+
+    size_t k = kc;
+    do {
+      $for M in range(MR):
+        const float va${M} = uint32_as_float((uint32_t) *a${M}++ << 16);
+      // One row of nr packed bf16 weights, widened once and shared by all ${MR} rows of A.
+      const vuint16m${LMUL_16}_t vb16 = __riscv_vle16_v_u16m${LMUL_16}(wh, vl);
+      wh = wh + nr;
+      const vuint32m${LMUL}_t vb32 = __riscv_vsll_vx_u32m${LMUL}(__riscv_vwcvtu_x_x_v_u32m${LMUL}(vb16, vl), 16, vl);
+      const vfloat32m${LMUL}_t vb = __riscv_vreinterpret_v_u32m${LMUL}_f32m${LMUL}(vb32);
+      $for M in range(MR):
+        vacc${M} = __riscv_vfmacc_vf_f32m${LMUL}(vacc${M}, va${M}, vb, vl);
+      k -= sizeof(uint16_t);
+    } while (k != 0);
+    // Next block of nr columns starts after this block's bias row and its kc/2 rows of nr bf16.
+    w = (const void*) ((uintptr_t) w + nr * sizeof(float) + (kc / sizeof(uint16_t)) * nr * sizeof(uint16_t));
+    // clamp results with min & max
+    $for M in range(MR):
+      vacc${M} = __riscv_vfmax_vf_f32m${LMUL}(vacc${M}, vmin, vl);
+
+    $for M in range(MR):
+      vacc${M} = __riscv_vfmin_vf_f32m${LMUL}(vacc${M}, vmax, vl);
+    // store ${MR} x vl results to c, then step to the next block of nr columns. Like the other bf16-f32 GEMM
+    // kernels (e.g. bf16-f32-gemm-1x4c2-minmax-scalar.c: c0 += 4), the step is nr floats, NOT cn_stride:
+    // upstream's tester passes cn_stride = 0 for this kernel type (gemm-microkernel-tester.cc, bf16_f32 Test).
+    $for M in range(MR):
+      __riscv_vse32_v_f32m${LMUL}(c${M}, vacc${M}, vl);
+      c${M} = (float*) ((uintptr_t) c${M} + nr * sizeof(float));
+    $for M in range(MR):
+      a${M} = (const uint16_t*) ((uintptr_t) a${M} - kc);
+  } while (nc != 0);
+}

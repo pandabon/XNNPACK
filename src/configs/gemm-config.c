@@ -471,7 +471,26 @@ static void init_bf16_f32_gemm_config(void) {
     #endif  // XNN_ENABLE_AVX512BF16
   }
   assert(bf16_f32_gemm_config.mr <= XNN_MAX_MR);
-#endif  // XNN_ARCH_X86_64
+#elif XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+  const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+  assert(hardware_config != NULL);
+  (void) hardware_config;  // May be unused.
+  if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+    // Plain RVV 1.0 kernels: bf16 is widened to f32 with integer ops (no Zvfbfmin/Zvfbfa needed).
+    // Same tiling as the f32 RVV gemm: mr 7, nr = 4 vector registers of f32 (LMUL 4).
+    bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(1)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv);
+    bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(7)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_7x4v__rvv);
+    bf16_f32_gemm_config.init.f32 = xnn_init_f32_minmax_scalar_params;
+    // The kernels read kr = 1 packing (nr f32 biases, then one row of nr bf16 per k). The reference C packers
+    // support that layout (goi and gio); they run once when the weights are packed, not per inference.
+    bf16_f32_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn) xnn_pack_bf16_f32_gemm_goi_w;
+    bf16_f32_gemm_config.pack_gemm_gio = (xnn_packw_gemm_gio_ukernel_fn) xnn_pack_bf16_f32_gemm_gio_w;
+    bf16_f32_gemm_config.mr = 7;
+    bf16_f32_gemm_config.nr = 4 * hardware_config->vlenb / sizeof(float);
+    bf16_f32_gemm_config.log2_kr = 0;
+  }
+  assert(bf16_f32_gemm_config.mr <= XNN_MAX_MR);
+#endif  // XNN_ARCH_X86_64 / XNN_ARCH_RISCV
 }
 
 static void init_pf32_gemm_config(void) {
