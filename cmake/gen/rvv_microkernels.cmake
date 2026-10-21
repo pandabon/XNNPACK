@@ -155,6 +155,7 @@ SET(PROD_RVV_MICROKERNEL_SRCS
   src/u8-rminmax/gen/u8-rmin-rvv-u8v.c
   src/u8-rminmax/gen/u8-rminmax-rvv-u8v.c
   src/u8-vclamp/gen/u8-vclamp-rvv-u4v.c
+  src/x16-x32-packw/gen/x16-x32-packw-x4v-gemm-goi-rvv-u4.c
   src/x32-packw/gen/x32-packw-x4v-gemm-goi-rvv-u8.c
   src/x32-transposec/gen/x32-transposec-4x4-rvv.c
   src/x32-transposec/gen/x32-transposec-8x8-rvv.c
@@ -377,6 +378,7 @@ SET(NON_PROD_RVV_MICROKERNEL_SRCS
   src/u8-vclamp/gen/u8-vclamp-rvv-u1v.c
   src/u8-vclamp/gen/u8-vclamp-rvv-u2v.c
   src/u8-vclamp/gen/u8-vclamp-rvv-u8v.c
+  src/x16-x32-packw/gen/x16-x32-packw-x4v-gemm-goi-rvv-u2.c
   src/x32-packw/gen/x32-packw-x1v-gemm-goi-rvv-u2.c
   src/x32-packw/gen/x32-packw-x1v-gemm-goi-rvv-u4.c
   src/x32-packw/gen/x32-packw-x1v-gemm-goi-rvv-u8.c
