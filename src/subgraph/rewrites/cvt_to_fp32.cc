@@ -349,6 +349,30 @@ OpAction GetOpActionBf16(const xnn_subgraph_t subgraph, const xnn_node& node) {
       }
       break;
     }
+    case xnn_node_type_binary_elementwise:
+      // add / subtract / multiply have bf16 binary configs (scalar everywhere, RVV on RISC-V); the other binary
+      // operators still fall back to fp32. Each config fills the vector, scalar-second-operand and reversed
+      // scalar-second-operand kernels together (IsValid checks the first).
+      switch (node.binary_operator) {
+        case xnn_binary_add:
+          if (IsValid(xnn_init_bf16_vadd_config())) {
+            return OpAction::kTransparent;
+          }
+          break;
+        case xnn_binary_subtract:
+          if (IsValid(xnn_init_bf16_vsub_config())) {
+            return OpAction::kTransparent;
+          }
+          break;
+        case xnn_binary_multiply:
+          if (IsValid(xnn_init_bf16_vmul_config())) {
+            return OpAction::kTransparent;
+          }
+          break;
+        default:
+          break;
+      }
+      break;
     case xnn_node_type_fully_connected:
     case xnn_node_type_batch_matrix_multiply: {
       // The native bf16 GEMM computes bf16 x bf16 -> fp32 (fully_connected_nc_bf16_f32 and

@@ -33,6 +33,8 @@ static const struct xnn_binary_elementwise_config* init_config(
       switch (datatype) {
         case xnn_datatype_fp32:
           return xnn_init_f32_vadd_config();
+        case xnn_datatype_bf16:
+          return xnn_init_bf16_vadd_config();
         case xnn_datatype_fp16:
           return xnn_init_f16_vadd_config();
         case xnn_datatype_qint8:
@@ -46,6 +48,8 @@ static const struct xnn_binary_elementwise_config* init_config(
       switch (datatype) {
         case xnn_datatype_fp32:
           return xnn_init_f32_vsub_config();
+        case xnn_datatype_bf16:
+          return xnn_init_bf16_vsub_config();
         case xnn_datatype_fp16:
           return xnn_init_f16_vsub_config();
         case xnn_datatype_qint8:
@@ -61,6 +65,8 @@ static const struct xnn_binary_elementwise_config* init_config(
       switch (datatype) {
         case xnn_datatype_fp32:
           return xnn_init_f32_vmul_config();
+        case xnn_datatype_bf16:
+          return xnn_init_bf16_vmul_config();
         case xnn_datatype_fp16:
           return xnn_init_f16_vmul_config();
         case xnn_datatype_qint8:

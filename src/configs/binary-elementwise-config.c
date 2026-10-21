@@ -16,6 +16,10 @@
 #include "src/xnnpack/microparams-init.h"
 #include "src/xnnpack/vbinary.h"
 
+static struct xnn_binary_elementwise_config bf16_vadd_config = {0};
+static struct xnn_binary_elementwise_config bf16_vmul_config = {0};
+static struct xnn_binary_elementwise_config bf16_vsub_config = {0};
+
 static struct xnn_binary_elementwise_config f16_vadd_config = {0};
 static struct xnn_binary_elementwise_config f16_vdiv_config = {0};
 static struct xnn_binary_elementwise_config f16_vmax_config = {0};
@@ -43,6 +47,9 @@ static struct xnn_binary_elementwise_config qu8_vadd_config = {0};
 static struct xnn_binary_elementwise_config qu8_vmul_config = {0};
 static struct xnn_binary_elementwise_config qu8_vprelu_config = {0};
 
+XNN_INIT_ONCE_GUARD(bf16_vadd);
+XNN_INIT_ONCE_GUARD(bf16_vmul);
+XNN_INIT_ONCE_GUARD(bf16_vsub);
 XNN_INIT_ONCE_GUARD(f16_vadd);
 XNN_INIT_ONCE_GUARD(f16_vdiv);
 XNN_INIT_ONCE_GUARD(f16_vmax);
@@ -71,6 +78,63 @@ XNN_INIT_ONCE_GUARD(qu8_vprelu);
 #define XNN_INIT_BINARY_UKERNEL(ukernel) \
   (xnn_vbinary_ukernel_fn) ukernel;      \
   xnn_log_info("Using binary microkernel '%s'.", #ukernel);
+
+static void init_bf16_vadd_config(void) {
+  // Scalar fallback first; the RVV kernels (widen to f32, compute, narrow) replace it when RVV is detected.
+  bf16_vadd_config.op_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vadd_ukernel__scalar_u4);
+  bf16_vadd_config.opc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vaddc_ukernel__scalar_u4);
+  bf16_vadd_config.ropc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vaddc_ukernel__scalar_u4);
+  bf16_vadd_config.element_tile = 4;
+  #if XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+    const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+    assert(hardware_config != NULL);
+    if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+      bf16_vadd_config.op_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vadd_ukernel__rvv_u4v);
+      bf16_vadd_config.opc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vaddc_ukernel__rvv_u4v);
+      bf16_vadd_config.ropc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vaddc_ukernel__rvv_u4v);
+      // element_tile = f32 elements per iteration = LMUL * vlenb / sizeof(float).
+      bf16_vadd_config.element_tile = 4 * hardware_config->vlenb / sizeof(float);
+    }
+  #endif
+}
+
+static void init_bf16_vmul_config(void) {
+  // Scalar fallback first; the RVV kernels (widen to f32, compute, narrow) replace it when RVV is detected.
+  bf16_vmul_config.op_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vmul_ukernel__scalar_u4);
+  bf16_vmul_config.opc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vmulc_ukernel__scalar_u4);
+  bf16_vmul_config.ropc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vmulc_ukernel__scalar_u4);
+  bf16_vmul_config.element_tile = 4;
+  #if XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+    const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+    assert(hardware_config != NULL);
+    if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+      bf16_vmul_config.op_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vmul_ukernel__rvv_u4v);
+      bf16_vmul_config.opc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vmulc_ukernel__rvv_u4v);
+      bf16_vmul_config.ropc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vmulc_ukernel__rvv_u4v);
+      // element_tile = f32 elements per iteration = LMUL * vlenb / sizeof(float).
+      bf16_vmul_config.element_tile = 4 * hardware_config->vlenb / sizeof(float);
+    }
+  #endif
+}
+
+static void init_bf16_vsub_config(void) {
+  // Scalar fallback first; the RVV kernels (widen to f32, compute, narrow) replace it when RVV is detected.
+  bf16_vsub_config.op_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vsub_ukernel__scalar_u4);
+  bf16_vsub_config.opc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vsubc_ukernel__scalar_u4);
+  bf16_vsub_config.ropc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vrsubc_ukernel__scalar_u4);
+  bf16_vsub_config.element_tile = 4;
+  #if XNN_ARCH_RISCV && XNN_ENABLE_RISCV_VECTOR
+    const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+    assert(hardware_config != NULL);
+    if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
+      bf16_vsub_config.op_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vsub_ukernel__rvv_u4v);
+      bf16_vsub_config.opc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vsubc_ukernel__rvv_u4v);
+      bf16_vsub_config.ropc_ukernel = XNN_INIT_BINARY_UKERNEL(xnn_bf16_vrsubc_ukernel__rvv_u4v);
+      // element_tile = f32 elements per iteration = LMUL * vlenb / sizeof(float).
+      bf16_vsub_config.element_tile = 4 * hardware_config->vlenb / sizeof(float);
+    }
+  #endif
+}
 
 static void init_f16_vadd_config(void) {
   #if XNN_ENABLE_ARM_FP16_SCALAR && XNN_ENABLE_ARM_FP16_VECTOR && XNN_ARCH_ARM
@@ -1691,6 +1755,36 @@ static void init_qu8_vprelu_config(void) {
     qu8_vprelu_config.init = (xnn_init_binary_params_fn) xnn_init_qu8_vprelu_scalar_params;
     qu8_vprelu_config.element_tile = 8;
   #endif
+}
+
+const struct xnn_binary_elementwise_config* xnn_init_bf16_vadd_config() {
+  const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+  // Dtype-level gate (like f16's): without bf16-capable hardware the op stays on the fp32 fallback.
+  if (hardware_config == NULL || !xnn_is_bf16_compatible_config(hardware_config)) {
+    return NULL;
+  }
+  XNN_INIT_ONCE(bf16_vadd);
+  return &bf16_vadd_config;
+}
+
+const struct xnn_binary_elementwise_config* xnn_init_bf16_vmul_config() {
+  const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+  // Dtype-level gate (like f16's): without bf16-capable hardware the op stays on the fp32 fallback.
+  if (hardware_config == NULL || !xnn_is_bf16_compatible_config(hardware_config)) {
+    return NULL;
+  }
+  XNN_INIT_ONCE(bf16_vmul);
+  return &bf16_vmul_config;
+}
+
+const struct xnn_binary_elementwise_config* xnn_init_bf16_vsub_config() {
+  const struct xnn_hardware_config* hardware_config = xnn_init_hardware_config();
+  // Dtype-level gate (like f16's): without bf16-capable hardware the op stays on the fp32 fallback.
+  if (hardware_config == NULL || !xnn_is_bf16_compatible_config(hardware_config)) {
+    return NULL;
+  }
+  XNN_INIT_ONCE(bf16_vsub);
+  return &bf16_vsub_config;
 }
 
 const struct xnn_binary_elementwise_config* xnn_init_f16_vadd_config() {
