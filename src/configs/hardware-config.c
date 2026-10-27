@@ -357,6 +357,10 @@ static void init_hardware_config(void) {
       #else
         set_arch_flag(xnn_arch_riscv_vector_fp16_arith, false);
       #endif
+      // Zvfbfa (vector bf16 arithmetic) is a draft extension and the compiler defines no macro for it (GCC 14 has no
+      // __riscv_zvfbfa), so it cannot be detected at build time. The kernels are opt-in with
+      // -DXNNPACK_ENABLE_RISCV_ZVFBFA=ON, and enabling that means the target core implements Zvfbfa (Penguin's Saturn does).
+      set_arch_flag(xnn_arch_riscv_vector_bf16_arith, XNN_ENABLE_RISCV_ZVFBFA && use_riscv_vector);
     #else
     // TODO: Use cpuinfo when fp16 detect works
     const long hwcap = getauxval(AT_HWCAP);
@@ -365,6 +369,8 @@ static void init_hardware_config(void) {
     set_arch_flag(xnn_arch_riscv_vector, use_riscv_vector);
 
     set_arch_flag(xnn_arch_riscv_vector_fp16_arith, XNN_ENABLE_RISCV_FP16_VECTOR && supports_rvv_fp16());
+    // No Linux hwprobe key for Zvfbfa is known to us (it is a draft extension), so it is never used on Linux.
+    set_arch_flag(xnn_arch_riscv_vector_bf16_arith, false);
     #endif
 
     if (use_riscv_vector) {

@@ -137,3 +137,17 @@
   pack: xnn_pack_bf16_f32_gemm_goi_w
   init: xnn_init_f32_minmax_scalar_params
   k-block: 1
+
+# RISC-V RVV with Zvfbfa (vtype.altfmt bf16 widening FMA, inline asm)
+- name: xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvvzvfbfa
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  init: xnn_init_f32_minmax_scalar_params
+  k-block: 1
+- name: xnn_bf16_f32_gemm_minmax_ukernel_5x4v__rvvzvfbfa
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  init: xnn_init_f32_minmax_scalar_params
+  k-block: 1
+- name: xnn_bf16_f32_gemm_minmax_ukernel_7x4v__rvvzvfbfa
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  init: xnn_init_f32_minmax_scalar_params
+  k-block: 1

@@ -768,6 +768,13 @@ XNNPACK_PARAMS_FOR_ARCH = {
             "-mabi=lp64d",
         ],
     ),
+    "rvvzvfbfa": _create_params(
+        cond = "//:riscv_zvfbfa_enabled",
+        copts = [
+            "-march=rv64gcv_zfh_zvfbfmin",
+            "-mabi=lp64d",
+        ],
+    ),
 
     # Hexagon.
     "hexagon": _create_params(

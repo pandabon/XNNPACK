@@ -1376,6 +1376,17 @@ config_setting(
     define_values = {"xnn_enable_riscv_fp16_vector": "false"},
 )
 
+# Enables usage of RISC-V Zvfbfa (BF16 vector arithmetic, draft extension) kernels. Off by default.
+config_setting(
+    name = "xnn_enable_riscv_zvfbfa_explicit_true",
+    define_values = {"xnn_enable_riscv_zvfbfa": "true"},
+)
+
+config_setting(
+    name = "xnn_enable_riscv_zvfbfa_explicit_false",
+    define_values = {"xnn_enable_riscv_zvfbfa": "false"},
+)
+
 # Enables usage of cpuinfo library.
 config_setting(
     name = "xnn_enable_cpuinfo_explicit_true",
@@ -2046,6 +2057,15 @@ alias(
         ":xnn_enable_riscv_fp16_vector_explicit_false": ":xnn_enable_riscv_fp16_vector_explicit_true",
         "//build_config:android": ":xnn_enable_riscv_fp16_vector_explicit_false",
         "//conditions:default": ":riscv_fp16_vector_enabled_by_default",
+    }),
+)
+
+# Zvfbfa kernels are a draft extension: only enabled with --define xnn_enable_riscv_zvfbfa=true.
+alias(
+    name = "riscv_zvfbfa_enabled",
+    actual = select({
+        ":xnn_enable_riscv_zvfbfa_explicit_true": ":xnn_enable_riscv_zvfbfa_explicit_true",
+        "//conditions:default": ":xnn_enable_riscv_zvfbfa_explicit_false",
     }),
 )
 

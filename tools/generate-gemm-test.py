@@ -837,7 +837,8 @@ def generate_test_cases(
     }[output_datatype]
     nr_scale = {
         "rvv": " * xnn_init_hardware_config()->vlenb / sizeof(%s)" % nr_type,
-        "rvvfp16arith": " * xnn_init_hardware_config()->vlenb / sizeof(%s)" % nr_type
+        "rvvfp16arith": " * xnn_init_hardware_config()->vlenb / sizeof(%s)" % nr_type,
+        "rvvzvfbfa": " * xnn_init_hardware_config()->vlenb / sizeof(%s)" % nr_type,
     }[isa]
   test_fun_name = "".join(ukernel.split("_")[1:4]).upper()
   if test_fun_name in {"QP8F32QC8W"}:
@@ -1072,7 +1073,7 @@ namespace {{
         create_tests_from_idx[create_tests_idx] = create_tests.replace(
             "CreateTests(", f"CreateTests{create_tests_idx}("
         )
-        if isa in {"rvv", "rvvfp16arith"}:
+        if isa in {"rvv", "rvvfp16arith", "rvvzvfbfa"}:
           create_tests_from_idx[create_tests_idx] = (
               xnncommon.postprocess_test_case(
                   create_tests_from_idx[create_tests_idx], arch, isa, assembly

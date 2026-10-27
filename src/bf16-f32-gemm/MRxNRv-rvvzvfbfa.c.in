@@ -1,0 +1,186 @@
+// Copyright 2024 SiFive, Inc.
+//
+// This source code is licensed under the BSD-style license found in the
+// LICENSE file in the root directory of this source tree.
+//
+// Derived from, and structured exactly like, our own src/bf16-f32-gemm/MRxNRv-rvv.c.in (fork pandabon/XNNPACK
+// branch penguin @ 27ac2acb4), itself derived from XNNPACK src/f32-gemm/MRxNRv-rvv.c.in
+// (Copyright 2024 SiFive, Inc.) @ 234f87b88. Only the k loop is new: it is one inline-asm block that uses the
+// Zvfbfa widening FMA directly on bf16 data.
+//
+// The k-loop structure (scalar bf16 A broadcast with a .vf instruction, one LMUL-2 bf16 load of B per k, widening
+// FMA into LMUL-4 f32 accumulators, K unrolled by 1) follows these references (structure only, no code copied):
+//  * SiFive Kernel Library (SKL), src/gemm/gemm_bf16_bf16_f32_zvfbfwma.c @ a3cb2cf34e67
+//  * IREE runtime/src/iree/builtins/ukernel/arch/riscv_64/mmt4d_riscv_64_zvfbfwma.c @ 69e0d66e
+// Both use vfwmaccbf16.vf (Zvfbfwma). Penguin's Saturn does not implement Zvfbfwma; it implements Zvfbfa (draft
+// v0.1, see below), so we use vfwmacc.vf with vtype.altfmt = 1 instead.
+//
+// How it works (for readers new to this):
+//  * Zvfbfa adds a bit to vtype, `altfmt` (bit 8). With SEW = 16 and altfmt = 1 the floating-point vector
+//    instructions read their 16-bit elements as bf16 instead of IEEE binary16. So at e16/m2/altfmt=1
+//      vfwmacc.vf vd, fs1, vs2      means      vd(f32, LMUL 4) += bf16(fs1) * bf16(vs2)   (fused, f32 accumulation)
+//    The scalar fs1 is a bf16 in the low 16 bits of an f register, NaN-boxed; `flh` loads it that way.
+//    Spike implements this (riscv-isa-sim riscv/v_ext_macros.h VI_VFP_VF_LOOP_WIDE, `P.VU.altfmt ? bf16_to_f32`).
+//  * Why this beats the plain-RVV kernel: no widening of B (vzext + vsll, an LMUL-4 temporary) is needed, so the
+//    register budget is MR * 4 accumulator registers + 2 for the bf16 B row (LMUL 2) = 30 for MR = 7, no spills.
+//  * The compiler (GCC 14.3) has no intrinsics for this and the assembler does not know zvfbfa, so the k loop is
+//    inline asm made only of instructions the assembler does know (vsetvl, vle16.v, vfwmacc.vf, flh); the altfmt
+//    bit is set through the register form of vsetvl, whose vtype value we compute ourselves:
+//      vtype = vlmul(m2 = 1) | vsew(e16 = 1) << 3 | vta << 6 | vma << 7 | altfmt << 8 = 1 + 8 + 64 + 128 + 256 = 0x1C9
+//    (RVV 1.0 vtype layout; altfmt at bit 8 is what Spike's vector_unit.cc decodes.)
+//  * The asm saves vl and vtype on entry and restores them on exit, so the compiler's own vsetvl bookkeeping
+//    (e32/m4 for the bias load, the clamp and the store) stays valid.
+//  * Packed weights layout (kr = 1, sr = 1, from xnn_pack_bf16_f32_gemm_goi_w / _gio_w): per block of nr columns,
+//    first nr f32 biases, then for every k one row of nr bf16 weights (the last block is zero-padded to nr).
+//  * A (activations) is bf16: one scalar `flh` per row and k.
+//  * Accumulation and output are f32; the clamp to [min, max] is the same as the f32 kernel.
+//  * Needs -march=rv64gcv_zfh_zvfbfmin (flh) and a core with Zvfbfa; the ISA token is `rvvzvfbfa`.
+
+$assert ACTIVATION in ["MINMAX"]
+$assert MR >= 1
+$assert MR <= 7  # t0-t6 / ft0-ft6 hold the row pointers and the bf16 values
+$assert NR == "m4"  # the asm below is written for e16/m2 B rows and e32/m4 accumulators
+$LMUL = NR[1]
+$LMUL_16 = {"2": "1", "4": "2", "8": "4"}[LMUL]
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include <riscv_vector.h>
+
+#include "src/xnnpack/gemm.h"
+#include "src/xnnpack/math.h"
+
+
+void xnn_bf16_f32_gemm_minmax_ukernel_${MR}x${LMUL}v__rvvzvfbfa(
+    size_t mr,
+    size_t nc,
+    size_t kc,
+    const uint16_t* restrict a,
+    size_t a_stride,
+    const void* restrict w,
+    float* restrict c,
+    size_t cm_stride,
+    size_t unused_cn_stride,
+    const struct xnn_f32_minmax_params* restrict params)
+{
+  assert(mr != 0);
+  assert(mr <= ${MR});
+  assert(nc != 0);
+  assert(kc != 0);
+  assert(kc % sizeof(uint16_t) == 0);
+  assert(a != NULL);
+  assert(w != NULL);
+  assert(c != NULL);
+
+  const float vmin = params->scalar.min;
+  const float vmax = params->scalar.max;
+  const uint16_t* a0 = a;
+  float* c0 = c;
+  $for M in range(1, MR):
+    const uint16_t* a${M} = (const uint16_t*) ((uintptr_t) a${M-1} + a_stride);
+    float* c${M} = (float*) ((uintptr_t) c${M-1} + cm_stride);
+    $if M % 2 == 0:
+      if XNN_UNPREDICTABLE(mr <= ${M}) {
+        a${M} = a${M-1};
+        c${M} = c${M-1};
+      }
+    $elif M + 1 == MR:
+      if XNN_UNPREDICTABLE(mr != ${M+1}) {
+        a${M} = a${M-1};
+        c${M} = c${M-1};
+      }
+    $else:
+      if XNN_UNPREDICTABLE(mr < ${M+1}) {
+        a${M} = a${M-1};
+        c${M} = c${M-1};
+      }
+
+  // The asm reads the row pointers from here (see the k loop).
+  const uint16_t* a_ptrs[${MR}] = {
+    $for M in range(MR):
+      a${M},
+  };
+
+  const size_t nr = __riscv_vsetvlmax_e32m${LMUL}();
+  size_t vl = nr;
+  do {
+    if XNN_UNLIKELY(nc < nr) {
+      vl = __riscv_vsetvl_e32m${LMUL}(nc);
+    }
+    nc = nc - vl;
+
+    // f32 biases come first in each packed block of nr columns.
+    const float* wf = (const float*) w;
+    vfloat32m${LMUL}_t vacc0 = __riscv_vle32_v_f32m${LMUL}(wf, vl);
+    const uint16_t* wh = (const uint16_t*) ((uintptr_t) w + nr * sizeof(float));
+    $for M in range(1, MR):
+      vfloat32m${LMUL}_t vacc${M} = __riscv_vmv_v_v_f32m${LMUL}(vacc0, vl);
+
+    // k loop in inline asm (see the header). GCC allows at most 30 asm operands and a "+" operand counts twice
+    // (it is an output and an input), so the MR accumulators (2 * MR) leave too little room for 2 * MR more operands
+    // for the A pointers and the scalar bf16 values. Therefore:
+    //  * the row pointers come in through the array a_ptrs; the asm loads them into scratch registers t0-t6 and
+    //    advances those copies, so a0..a${MR-1} (and the array) stay untouched and need no reset after the loop;
+    //  * the scalar bf16 A values use the scratch float registers ft0-ft6 (named clobbers do not count as operands).
+    // Operands:
+    //  vacc*  : the MR f32 accumulators (LMUL 4), read and written ("+vr" = any vector register).
+    //  vb     : early-clobber scratch for one row of nr bf16 weights (LMUL 2); it is written while the asm still
+    //           reads its inputs, so it must not share a register with them.
+    //  wh     : pointer to the bf16 weights, advanced by wstep = nr * 2 bytes per k.
+    //  k      : bytes of A left (counts down by 2 per bf16).
+    size_t k = kc;
+    const size_t wstep = nr * sizeof(uint16_t);
+    size_t vl_saved, vtype_saved;
+    vuint16m${LMUL_16}_t vb;
+    __asm__ volatile(
+        // Save vl/vtype so they can be restored: the compiler believes they are e32/m4 with this vl.
+        "csrr %[vl_saved], vl\\n"
+        "csrr %[vtype_saved], vtype\\n"
+        // vtype for the loop: e16, m2, ta, ma, altfmt = 1 (see the header). In the register form of vsetvl the AVL is
+        // the old vl, and vl = min(AVL, VLMAX(e16, m2)) = old vl because VLMAX(e16, m2) == VLMAX(e32, m4). So the
+        // m2 bf16 row has exactly as many elements as each m4 f32 accumulator. rd = x0: the new vl is not needed.
+        "li t0, 0x1C9\\n"
+        "vsetvl x0, %[vl_saved], t0\\n"
+        // Load the MR row pointers into t0-t6 (t0 is free again after the vsetvl).
+        $for M in range(MR):
+          "ld t${M}, ${M * 8}(%[a_ptrs])\\n"
+        "1:\\n"
+        // vb = next row of nr bf16 weights (e16, m2, vl elements); then step the weight pointer.
+        "vle16.v %[vb], (%[wh])\\n"
+        "add %[wh], %[wh], %[wstep]\\n"
+        // One bf16 of A per row into a float register: flh NaN-boxes the 16-bit value, which a .vf instruction at
+        // SEW=16 requires. Then step each A pointer by one bf16.
+        $for M in range(MR):
+          "flh ft${M}, 0(t${M})\\n"
+          "addi t${M}, t${M}, 2\\n"
+        // acc_m(f32) += bf16(ft_m) * bf16(vb): the Zvfbfa widening FMA (vfwmacc.vf under altfmt = 1).
+        $for M in range(MR):
+          "vfwmacc.vf %[vacc${M}], ft${M}, %[vb]\\n"
+        "addi %[k], %[k], -2\\n"
+        "bnez %[k], 1b\\n"
+        // Back to the compiler's vtype/vl (rd = x0, rs1 = saved vl register: vl = min(saved vl, VLMAX)).
+        "vsetvl x0, %[vl_saved], %[vtype_saved]\\n"
+        : [vl_saved] "=&r"(vl_saved), [vtype_saved] "=&r"(vtype_saved), [vb] "=&vr"(vb),
+          [wh] "+r"(wh), [k] "+r"(k)
+          $for M in range(MR):
+            , [vacc${M}] "+vr"(vacc${M})
+        : [a_ptrs] "r"(a_ptrs), [wstep] "r"(wstep)
+        : "memory", "vl", "vtype", "t0", "t1", "t2", "t3", "t4", "t5", "t6",
+          "ft0", "ft1", "ft2", "ft3", "ft4", "ft5", "ft6");
+    // Next block of nr columns starts after this block's bias row and its kc/2 rows of nr bf16.
+    w = (const void*) ((uintptr_t) w + nr * sizeof(float) + (kc / sizeof(uint16_t)) * nr * sizeof(uint16_t));
+    // clamp results with min & max
+    $for M in range(MR):
+      vacc${M} = __riscv_vfmax_vf_f32m${LMUL}(vacc${M}, vmin, vl);
+
+    $for M in range(MR):
+      vacc${M} = __riscv_vfmin_vf_f32m${LMUL}(vacc${M}, vmax, vl);
+    // store ${MR} x vl results to c, then step to the next block of nr columns. Like the other bf16-f32 GEMM
+    // kernels (e.g. bf16-f32-gemm-1x4c2-minmax-scalar.c: c0 += 4), the step is nr floats, NOT cn_stride:
+    // upstream's tester passes cn_stride = 0 for this kernel type (gemm-microkernel-tester.cc, bf16_f32 Test).
+    $for M in range(MR):
+      __riscv_vse32_v_f32m${LMUL}(c${M}, vacc${M}, vl);
+      c${M} = (float*) ((uintptr_t) c${M} + nr * sizeof(float));
+  } while (nc != 0);
+}

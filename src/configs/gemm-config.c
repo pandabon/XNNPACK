@@ -482,13 +482,26 @@ static void init_bf16_f32_gemm_config(void) {
     // every k. IREE caps its widening RVV tile (mmt4d_riscv_64_zvfhmin.c) at M0 = 6 for the same reason; mr 5 also
     // tiles SmolVLA's 50 action rows exactly. 6x4v and 7x4v stay built and tested for comparison.
     bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(1)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv);
-    bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(5)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_5x4v__rvv);
+    #if XNN_ENABLE_RISCV_ZVFBFA
+    if (hardware_config->arch_flags & xnn_arch_riscv_vector_bf16_arith) {
+      // Zvfbfa (draft): vfwmacc.vf under vtype.altfmt = 1 multiplies bf16 x bf16 straight into f32, so B needs no
+      // widening temporary and even 7 m4 accumulators + one m2 B row use only 30 of 32 registers (no spill).
+      // Still mr 5 here: on SmolVLA's layer 1 (50 action rows) 5x4v__rvvzvfbfa executes fewer instructions (49.5 M)
+      // than 7x4v__rvvzvfbfa (51.4 M) because 5 tiles 50 rows exactly while 7 leaves a 1-row remainder tile.
+      // 7x4v__rvvzvfbfa stays built and tested; for other shapes switch mr to 7.
+      bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(5)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_5x4v__rvvzvfbfa);
+      bf16_f32_gemm_config.mr = 5;
+    } else
+    #endif
+    {
+      bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(5)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_5x4v__rvv);
+      bf16_f32_gemm_config.mr = 5;
+    }
     bf16_f32_gemm_config.init.f32 = xnn_init_f32_minmax_scalar_params;
     // The kernels read kr = 1 packing (nr f32 biases, then one row of nr bf16 per k). goi uses the RVV packw
     // (same layout as the reference C packer, byte for byte); gio still uses the reference C packer.
     bf16_f32_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn) xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u4;
     bf16_f32_gemm_config.pack_gemm_gio = (xnn_packw_gemm_gio_ukernel_fn) xnn_pack_bf16_f32_gemm_gio_w;
-    bf16_f32_gemm_config.mr = 5;
     bf16_f32_gemm_config.nr = 4 * hardware_config->vlenb / sizeof(float);
     bf16_f32_gemm_config.log2_kr = 0;
   }

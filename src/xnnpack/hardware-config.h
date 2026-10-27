@@ -61,6 +61,8 @@ enum xnn_arch_flags {
 #elif XNN_ARCH_RISCV
   xnn_arch_riscv_vector = 1 << 0,
   xnn_arch_riscv_vector_fp16_arith = 1 << 1,
+  // Zvfbfa (vector bf16 arithmetic via vtype.altfmt), a draft extension. Gates the *__rvvzvfbfa kernels.
+  xnn_arch_riscv_vector_bf16_arith = 1 << 2,
 #elif XNN_ARCH_PPC64
   xnn_arch_vsx = 1 << 0,
   xnn_arch_vsx3 = 1 << 1,
