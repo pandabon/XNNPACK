@@ -36,6 +36,8 @@ tools/xngen src/bf16-gemm/c8-neonbf16.c.in -D MR=4 -D NR=4 -D BFOPT=BFMLAL -o sr
 tools/xngen src/bf16-gemm/c8-neonbf16.c.in -D MR=5 -D NR=4 -D BFOPT=BFMLAL -o src/bf16-gemm/gen/bf16-gemm-5x4c8-minmax-neonbf16-bfmlal.c &
 
 ################################## RISC-V RVV #################################
+tools/xngen src/bf16-f32-gemm/MRxNRv-rvv.c.in -D MR=5 -D NR=m4 -D ACTIVATION=MINMAX -o src/bf16-f32-gemm/gen/bf16-f32-gemm-5x4v-minmax-rvv.c &
+tools/xngen src/bf16-f32-gemm/MRxNRv-rvv.c.in -D MR=6 -D NR=m4 -D ACTIVATION=MINMAX -o src/bf16-f32-gemm/gen/bf16-f32-gemm-6x4v-minmax-rvv.c &
 tools/xngen src/bf16-f32-gemm/MRxNRv-rvv.c.in -D MR=7 -D NR=m4 -D ACTIVATION=MINMAX -o src/bf16-f32-gemm/gen/bf16-f32-gemm-7x4v-minmax-rvv.c &
 tools/xngen src/bf16-f32-gemm/MRxNRv-rvv.c.in -D MR=1 -D NR=m4 -D ACTIVATION=MINMAX -o src/bf16-f32-gemm/gen/bf16-f32-gemm-1x4v-minmax-rvv.c &
 

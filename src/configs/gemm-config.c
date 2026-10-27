@@ -477,15 +477,18 @@ static void init_bf16_f32_gemm_config(void) {
   (void) hardware_config;  // May be unused.
   if (hardware_config->arch_flags & xnn_arch_riscv_vector) {
     // Plain RVV 1.0 kernels: bf16 is widened to f32 with integer ops (no Zvfbfmin/Zvfbfa needed).
-    // Same tiling as the f32 RVV gemm: mr 7, nr = 4 vector registers of f32 (LMUL 4).
+    // nr = 4 vector registers of f32 (LMUL 4), like the f32 RVV gemm, but mr 5 instead of 7: the in-register widen
+    // needs an m2 + m4 temporary, so 7 m4 accumulators (28 + 6 = 34 > 32 registers) make GCC spill one accumulator
+    // every k. IREE caps its widening RVV tile (mmt4d_riscv_64_zvfhmin.c) at M0 = 6 for the same reason; mr 5 also
+    // tiles SmolVLA's 50 action rows exactly. 6x4v and 7x4v stay built and tested for comparison.
     bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(1)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv);
-    bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(7)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_7x4v__rvv);
+    bf16_f32_gemm_config.minmax.gemm[XNN_MR_TO_INDEX(5)] = XNN_INIT_HMP_GEMM_UKERNEL(xnn_bf16_f32_gemm_minmax_ukernel_5x4v__rvv);
     bf16_f32_gemm_config.init.f32 = xnn_init_f32_minmax_scalar_params;
     // The kernels read kr = 1 packing (nr f32 biases, then one row of nr bf16 per k). goi uses the RVV packw
     // (same layout as the reference C packer, byte for byte); gio still uses the reference C packer.
     bf16_f32_gemm_config.pack_gemm_goi = (xnn_packw_gemm_goi_ukernel_fn) xnn_x16_x32_packw_gemm_goi_ukernel_x4v__rvv_u4;
     bf16_f32_gemm_config.pack_gemm_gio = (xnn_packw_gemm_gio_ukernel_fn) xnn_pack_bf16_f32_gemm_gio_w;
-    bf16_f32_gemm_config.mr = 7;
+    bf16_f32_gemm_config.mr = 5;
     bf16_f32_gemm_config.nr = 4 * hardware_config->vlenb / sizeof(float);
     bf16_f32_gemm_config.log2_kr = 0;
   }

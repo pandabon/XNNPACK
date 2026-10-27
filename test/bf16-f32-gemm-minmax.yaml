@@ -125,6 +125,14 @@
   pack: xnn_pack_bf16_f32_gemm_goi_w
   init: xnn_init_f32_minmax_scalar_params
   k-block: 1
+- name: xnn_bf16_f32_gemm_minmax_ukernel_5x4v__rvv
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  init: xnn_init_f32_minmax_scalar_params
+  k-block: 1
+- name: xnn_bf16_f32_gemm_minmax_ukernel_6x4v__rvv
+  pack: xnn_pack_bf16_f32_gemm_goi_w
+  init: xnn_init_f32_minmax_scalar_params
+  k-block: 1
 - name: xnn_bf16_f32_gemm_minmax_ukernel_7x4v__rvv
   pack: xnn_pack_bf16_f32_gemm_goi_w
   init: xnn_init_f32_minmax_scalar_params

@@ -30,6 +30,10 @@ DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
 DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_f32_gemm_minmax_ukernel_1x4v__rvv)
 DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_gemm_minmax_ukernel_5x4v__rvv)
+DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_f32_gemm_minmax_ukernel_6x4v__rvv)
+DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_f32_gemm_minmax_ukernel_7x4v__rvv)
 DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_f32_gemm_minmax_ukernel_1x16c2__asm_amd64_avx512bf16_broadcast)
