@@ -101,6 +101,12 @@ XNN_INTERNAL void xnn_init_blockwise_scale_bf16_params(
     size_t channels, size_t channels_tile, size_t stride, size_t num_blocks,
     size_t block_stride, const xnn_bfloat16* scale, void* packed_w);
 
+XNN_INTERNAL size_t xnn_init_f32_layernorm_scalar_params(
+    struct xnn_f32_layernorm_params* params, float epsilon);
+
+XNN_INTERNAL size_t xnn_init_bf16_layernorm_scalar_params(
+    struct xnn_bf16_layernorm_params* params, float epsilon);
+
 XNN_INTERNAL size_t xnn_init_f16_scale_scalar_params(
     struct xnn_f16_scale_params* params, xnn_float16 scale);
 

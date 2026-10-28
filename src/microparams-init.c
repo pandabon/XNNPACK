@@ -502,6 +502,22 @@ size_t xnn_init_f16_f32acc_scale_scalar_params(
   return sizeof(params[0]);
 }
 
+size_t xnn_init_f32_layernorm_scalar_params(
+  struct xnn_f32_layernorm_params* params,
+  float epsilon)
+{
+  params->scalar.epsilon = epsilon;
+  return sizeof(params[0]);
+}
+
+size_t xnn_init_bf16_layernorm_scalar_params(
+  struct xnn_bf16_layernorm_params* params,
+  float epsilon)
+{
+  params->scalar.epsilon = epsilon;
+  return sizeof(params[0]);
+}
+
 size_t xnn_init_f32_scale_scalar_params(
   struct xnn_f32_scale_params* params,
   float scale)

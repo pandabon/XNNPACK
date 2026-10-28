@@ -39,6 +39,20 @@ struct xnn_f32_relu_params {
   char _;  // Dummy member variable to comply with the C standard
 };
 
+// LayerNorm: epsilon added to the variance, used by LAYERNORM microkernels.
+
+struct xnn_f32_layernorm_params {
+  struct {
+    float epsilon;
+  } scalar;
+};
+
+struct xnn_bf16_layernorm_params {
+  struct {
+    float epsilon;
+  } scalar;
+};
+
 // Scale: used by RSUM microkernels
 
 struct xnn_f16_scale_params {

@@ -7,6 +7,7 @@
 
 PROD_SCALAR_MICROKERNEL_SRCS = [
     "src/bf16-f32-vcvt/gen/bf16-f32-vcvt-scalar-u2.c",
+    "src/bf16-layernorm/gen/bf16-layernorm-scalar-u1.c",
     "src/bf16-qs8-vcvt/gen/bf16-qs8-vcvt-scalar-imagic-u4.c",
     "src/bf16-qu8-vcvt/gen/bf16-qu8-vcvt-scalar-imagic-u4.c",
     "src/bf16-rminmax/gen/bf16-rmax-scalar-u2-acc2.c",
@@ -73,6 +74,7 @@ PROD_SCALAR_MICROKERNEL_SRCS = [
     "src/f32-igemm/gen/f32-igemm-4x2-scalar.c",
     "src/f32-igemm/gen/f32-igemm-4x4-minmax-scalar.c",
     "src/f32-igemm/gen/f32-igemm-4x4-scalar.c",
+    "src/f32-layernorm/gen/f32-layernorm-scalar-u1.c",
     "src/f32-maxpool/gen/f32-maxpool-9p-minmax-scalar-u1.c",
     "src/f32-qc4w-gemm/gen/f32-qc4w-gemm-1x4-minmax-scalar.c",
     "src/f32-qc4w-gemm/gen/f32-qc4w-gemm-4x4-minmax-scalar.c",

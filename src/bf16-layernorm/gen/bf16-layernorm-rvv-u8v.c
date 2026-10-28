@@ -1,0 +1,127 @@
+// clang-format off
+// Auto-generated file. Do not edit!
+//   Template: src/f32-layernorm/rvv.c.in
+//   Generator: tools/xngen
+//
+// Copyright 2026 Google LLC
+//
+// This source code is licensed under the BSD-style license found in the
+// LICENSE file in the root directory of this source tree.
+//
+// Layer normalization of one row for RISC-V Vector (plain RVV 1.0 intrinsics; the bf16 variant needs no Zvfbf*).
+//
+// Derived from Tencent ncnn (Copyright 2025 Tencent, SPDX-License-Identifier: BSD-3-Clause), commit
+// 706c4d19646796f8d79af568d28beec47d07bc2f:
+//  * src/layer/riscv/layernorm_riscv.cpp, function layernorm(), the elempack == 1 path (f32);
+//  * src/layer/riscv/layernorm_riscv_zfh.cpp, function layernorm_fp16s() (16-bit storage, f32 math): the load/narrow
+//    structure used for bf16.
+// Kept from ncnn: LMUL 8 for the f32 working registers (LMUL 4 for the 16-bit loads), a vfadd accumulator that stays
+// in registers and is reduced once with vfredusum, the two-pass statistics (mean first, then the sum of
+// (x - mean)^2, so no catastrophic cancellation), and a = 1 / sqrt(var + eps), b = -mean * a,
+// y = (x * a + b) * gamma + beta with fused multiply-adds.
+// Changed from ncnn (this is XNNPACK glue, not new maths):
+//  * one strip-mined loop per pass (vsetvl each iteration, tail-undisturbed accumulation) instead of a loop over full
+//    vectors plus a tail block, and no packed (elempack != 1) or xtheadvector paths;
+//  * mean, var, a and b are computed in scalar f32 once per row (ncnn keeps them in vector registers: m8 vfdiv,
+//    vfsqrt and vrgather broadcasts), because a vector divide/sqrt over a whole m8 register group for one number
+//    looks wasteful on a core with an iterative divider (our reasoning, not measured on Saturn);
+//  * the squared-deviation accumulation uses vfmacc in every iteration (ncnn uses vfmul + vfadd for its tail).
+// bf16 (our addition, same approach as the other bf16 kernels of this fork, see src/f32-bf16-vcvt/rvv.c.in):
+//  * widen: zero-extend the u16 to u32 and shift left by 16, ncnn bfloat2float_rvv() in src/layer/riscv/riscv_usability.h
+//    (commit 7e36d25cb153092ba87a60530455c7376fedf452), integer branch;
+//  * narrow: vnclipu with shift 16 and rounding mode RNE, ncnn float2bfloat_rvv() (same file and commit), plus the NaN
+//    fix-up of src/f32-bf16-vcvt/rvv.c.in so the result equals the scalar xnn_bfloat16_from_float() bit for bit.
+//
+// Why f32 math for bf16: the GCC 14 toolchain has no bf16 vector arithmetic intrinsics, and the statistics need f32
+// anyway (a bf16 sum of 768 values loses all precision).
+
+#include <assert.h>
+#include <math.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include <riscv_vector.h>
+
+#include "src/xnnpack/common.h"
+#include "src/xnnpack/layernorm.h"
+#include "src/xnnpack/math.h"
+#include "src/xnnpack/microparams.h"
+
+// bf16 -> f32: zero-extend, shift left by 16, reinterpret.
+static XNN_INLINE vfloat32m8_t load_f32(const xnn_bfloat16* p, size_t vl) {
+  const vuint16m4_t vh = __riscv_vle16_v_u16m4((const uint16_t*) p, vl);
+  const vuint32m8_t vw = __riscv_vsll_vx_u32m8(__riscv_vwcvtu_x_x_v_u32m8(vh, vl), 16, vl);
+  return __riscv_vreinterpret_v_u32m8_f32m8(vw);
+}
+
+// f32 -> bf16: round to nearest even; NaN lanes are quieted and truncated (as the scalar reference).
+static XNN_INLINE void store_f32(xnn_bfloat16* p, vfloat32m8_t v, size_t vl) {
+  const vuint32m8_t vbits = __riscv_vreinterpret_v_f32m8_u32m8(v);
+  vuint16m4_t vh = __riscv_vnclipu_wx_u16m4(vbits, 16, __RISCV_VXRM_RNE, vl);
+  const vuint32m8_t vabs = __riscv_vand_vx_u32m8(vbits, UINT32_C(0x7FFFFFFF), vl);
+  const vbool4_t vnan = __riscv_vmsgtu_vx_u32m8_b4(vabs, UINT32_C(0x7F800000), vl);
+  const vuint32m8_t vquiet = __riscv_vor_vx_u32m8(vbits, UINT32_C(0x00400000), vl);
+  const vuint16m4_t vnan_h = __riscv_vnsrl_wx_u16m4(vquiet, 16, vl);
+  vh = __riscv_vmerge_vvm_u16m4(vh, vnan_h, vnan, vl);
+  __riscv_vse16_v_u16m4((uint16_t*) p, vh, vl);
+}
+
+void xnn_bf16_layernorm_ukernel__rvv_u8v(
+    size_t batch,
+    const xnn_bfloat16* input,
+    const xnn_bfloat16* scale,
+    const xnn_bfloat16* bias,
+    xnn_bfloat16* output,
+    const struct xnn_bf16_layernorm_params* restrict params)
+{
+  assert(batch != 0);
+  assert(batch % sizeof(xnn_bfloat16) == 0);
+  assert(input != NULL);
+  assert(scale != NULL);
+  assert(bias != NULL);
+  assert(output != NULL);
+
+  const size_t channels = batch / sizeof(xnn_bfloat16);
+  const float vepsilon = params->scalar.epsilon;
+  const size_t vlmax = __riscv_vsetvlmax_e32m8();
+  const vfloat32m1_t vzero1 = __riscv_vfmv_s_f_f32m1(0.0f, __riscv_vsetvlmax_e32m1());
+
+  // Pass 1: mean. Lane-wise partial sums in one register group, reduced once at the end.
+  vfloat32m8_t vsum = __riscv_vfmv_v_f_f32m8(0.0f, vlmax);
+  {
+    const xnn_bfloat16* x = input;
+    for (size_t n = channels; n != 0;) {
+      const size_t vl = __riscv_vsetvl_e32m8(n); n -= vl;
+      const vfloat32m8_t vx = load_f32(x, vl); x += vl;
+      vsum = __riscv_vfadd_vv_f32m8_tu(vsum, vsum, vx, vl);
+    }
+  }
+  const float vmean = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m8_f32m1(vsum, vzero1, vlmax)) / (float) channels;
+
+  // Pass 2: variance = mean of (x - mean)^2 (biased).
+  vfloat32m8_t vsqsum = __riscv_vfmv_v_f_f32m8(0.0f, vlmax);
+  {
+    const xnn_bfloat16* x = input;
+    for (size_t n = channels; n != 0;) {
+      const size_t vl = __riscv_vsetvl_e32m8(n); n -= vl;
+      const vfloat32m8_t vd = __riscv_vfsub_vf_f32m8(load_f32(x, vl), vmean, vl); x += vl;
+      vsqsum = __riscv_vfmacc_vv_f32m8_tu(vsqsum, vd, vd, vl);
+    }
+  }
+  const float vvar = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m8_f32m1(vsqsum, vzero1, vlmax)) / (float) channels;
+
+  // a = 1 / sqrt(var + eps); b = -mean * a.
+  const float va = 1.0f / sqrtf(vvar + vepsilon);
+  const float vb = -vmean * va;
+
+  // Pass 3: y = (x * a + b) * scale + bias.
+  for (size_t n = channels; n != 0;) {
+    const size_t vl = __riscv_vsetvl_e32m8(n); n -= vl;
+    const vfloat32m8_t vx = load_f32(input, vl); input += vl;
+    vfloat32m8_t vy = __riscv_vfmacc_vf_f32m8(__riscv_vfmv_v_f_f32m8(vb, vl), va, vx, vl);
+    const vfloat32m8_t vscale = load_f32(scale, vl); scale += vl;
+    const vfloat32m8_t vbias = load_f32(bias, vl); bias += vl;
+    vy = __riscv_vfmadd_vv_f32m8(vy, vscale, vbias, vl);
+    store_f32(output, vy, vl); output += vl;
+  }
+}

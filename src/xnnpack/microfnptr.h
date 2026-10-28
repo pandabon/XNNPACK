@@ -859,6 +859,30 @@ typedef void (*xnn_qu8_rsum_ukernel_fn)(
     size_t batch, const uint8_t* input, uint32_t* output,
     const struct xnn_qs8_rsum_params* params);
 
+// LAYERNORM: layer normalization of one row (the last dimension).
+// batch is the row length in BYTES. scale (gamma) and bias (beta) have the same
+// length and element type as the input. output may alias input.
+
+typedef void (*xnn_f32_layernorm_ukernel_fn)(
+    size_t batch, const float* input, const float* scale, const float* bias,
+    float* output, const struct xnn_f32_layernorm_params* params);
+
+typedef void (*xnn_bf16_layernorm_ukernel_fn)(
+    size_t batch, const xnn_bfloat16* input, const xnn_bfloat16* scale,
+    const xnn_bfloat16* bias, xnn_bfloat16* output,
+    const struct xnn_bf16_layernorm_params* params);
+
+// Type-erased form used by the layer norm operator and its config.
+typedef void (*xnn_layernorm_ukernel_fn)(size_t batch, const void* input,
+                                         const void* scale, const void* bias,
+                                         void* output, const void* params);
+
+typedef size_t (*xnn_init_f32_layernorm_params_fn)(
+    struct xnn_f32_layernorm_params* params, float epsilon);
+
+typedef size_t (*xnn_init_bf16_layernorm_params_fn)(
+    struct xnn_bf16_layernorm_params* params, float epsilon);
+
 // RSUM2: Reduce-Sum Squared
 
 typedef void (*xnn_rsum2_ukernel_fn)(size_t batch, const void* input,

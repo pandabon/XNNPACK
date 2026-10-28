@@ -259,6 +259,7 @@ xnnpack_cxx_library(
     shard_count = shard_count,
     deps = MICROKERNEL_TEST_DEPS,
 ) for (test, shard_count) in [
+    ("layernorm", 1),
     ("rminmax", 1),
     ("rsum", 1),
     ("rsum2", 1),
