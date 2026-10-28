@@ -155,3 +155,9 @@
 - name: xnn_f32_gemm_ukernel_7x4v__rvv
   pack: xnn_pack_f32_gemm_goi_w
   k-block: 1
+- name: xnn_f32_gemm_ukernel_1x2v__rvv
+  pack: xnn_pack_f32_gemm_goi_w
+  k-block: 1
+- name: xnn_f32_gemm_ukernel_7x2v__rvv
+  pack: xnn_pack_f32_gemm_goi_w
+  k-block: 1

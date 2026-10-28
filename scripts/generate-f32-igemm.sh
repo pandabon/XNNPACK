@@ -350,6 +350,10 @@ tools/xngen src/f32-igemm/MRxNRv-rvv.c.in -D MR=1 -D NR=m4 -D ACTIVATION=LINEAR 
 tools/xngen src/f32-igemm/MRxNRv-rvv.c.in -D MR=7 -D NR=m4 -D ACTIVATION=LINEAR -o src/f32-igemm/gen/f32-igemm-7x4v-rvv.c &
 tools/xngen src/f32-igemm/MRxNRv-rvv.c.in -D MR=1 -D NR=m4 -D ACTIVATION=MINMAX -o src/f32-igemm/gen/f32-igemm-1x4v-minmax-rvv.c &
 tools/xngen src/f32-igemm/MRxNRv-rvv.c.in -D MR=7 -D NR=m4 -D ACTIVATION=MINMAX -o src/f32-igemm/gen/f32-igemm-7x4v-minmax-rvv.c &
+tools/xngen src/f32-igemm/MRxNRv-rvv.c.in -D MR=7 -D NR=m2 -D ACTIVATION=LINEAR -o src/f32-igemm/gen/f32-igemm-7x2v-rvv.c &
+tools/xngen src/f32-igemm/MRxNRv-rvv.c.in -D MR=7 -D NR=m2 -D ACTIVATION=MINMAX -o src/f32-igemm/gen/f32-igemm-7x2v-minmax-rvv.c &
+tools/xngen src/f32-igemm/MRxNRv-rvv.c.in -D MR=1 -D NR=m2 -D ACTIVATION=LINEAR -o src/f32-igemm/gen/f32-igemm-1x2v-rvv.c &
+tools/xngen src/f32-igemm/MRxNRv-rvv.c.in -D MR=1 -D NR=m2 -D ACTIVATION=MINMAX -o src/f32-igemm/gen/f32-igemm-1x2v-minmax-rvv.c &
 
 ################################### HEXAGON HVX ##################################
 tools/xngen src/f32-igemm/hvx-broadcast.c.in -D MR=1  -D NR=32 -o src/f32-igemm/gen/f32-igemm-1x32-minmax-hvx-broadcast.c &

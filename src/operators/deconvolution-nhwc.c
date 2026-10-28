@@ -1005,7 +1005,8 @@ static enum xnn_status setup_variant_and_gemm_config(
       if (context->gemm_config->nr > context->group_output_channels) {
         // Default micro-kernel is suboptimal. Try to find a better
         // micro-kernel.
-        if (gemm_nr2_config->minmax.igemm[gemm_nr2_config->mr - 1]
+        if (gemm_nr2_config->mr != 0 &&
+            gemm_nr2_config->minmax.igemm[gemm_nr2_config->mr - 1]
                 .function[XNN_UARCH_DEFAULT] != NULL) {
           context->gemm_config = gemm_nr2_config;
           context->fingerprint_id_nr2 = xnn_fingerprint_id_helper_nr2;

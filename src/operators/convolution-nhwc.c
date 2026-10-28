@@ -1653,7 +1653,8 @@ static enum xnn_status select_gemm_config(
             xnn_init_f32_gemm_nr2_config(context->flags);
         // Default micro-kernel is suboptimal. Try to find a better
         // micro-kernel.
-        if (gemm_nr2_config->minmax.igemm[gemm_nr2_config->mr - 1]
+        if (gemm_nr2_config != NULL && gemm_nr2_config->mr != 0 &&
+            gemm_nr2_config->minmax.igemm[gemm_nr2_config->mr - 1]
                 .function[XNN_UARCH_DEFAULT] != NULL) {
           context->gemm_config = gemm_nr2_config;
         }

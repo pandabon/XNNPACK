@@ -280,7 +280,7 @@ XNN_NO_SANITIZE_FUNCTION enum xnn_status create_dynamic_fully_connected_nc_f32(
   struct xnn_f32_minmax_params params2;
   if (gemm_nr2_config != NULL) {
     gemm_nr2_ukernels = &gemm_nr2_config->minmax;
-    if (linear_activation &&
+    if (linear_activation && gemm_nr2_config->mr != 0 &&
         gemm_nr2_config->linear.gemm[gemm_nr2_config->mr - 1]
                 .function[XNN_UARCH_DEFAULT] != NULL) {
       gemm_nr2_ukernels = &gemm_nr2_config->linear;

@@ -1538,7 +1538,7 @@ static enum xnn_status setup_variant_and_gemm_config(
       if (context->fingerprint_id ==
           xnn_fingerprint_id_fully_connected_nc_f32_f32_f32_nr2) {
         context->gemm_config = gemm_nr2_config;
-      } else if (gemm_nr2_config != NULL &&
+      } else if (gemm_nr2_config != NULL && gemm_nr2_config->mr != 0 &&
                  gemm_nr2_config->minmax.gemm[gemm_nr2_config->mr - 1]
                          .function[XNN_UARCH_DEFAULT] != NULL &&
                  xnn_use_nr2(context->gemm_config->nr, gemm_nr2_config->nr,
