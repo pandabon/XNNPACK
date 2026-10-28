@@ -29,6 +29,7 @@ IF(XNNPACK_BUILD_LIBRARY)
     depth-to-space-nhwc
     dynamic-fully-connected-nc
     fully-connected-nc
+    layer-norm-nc
     max-pooling-nhwc
     reduce-nd
     resize-bilinear-nchw

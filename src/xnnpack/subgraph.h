@@ -391,6 +391,9 @@ struct xnn_node {
       int64_t ends[XNN_MAX_TENSOR_DIMS];
     } slice;
     struct {
+      float epsilon;
+    } layer_norm;
+    struct {
       uint32_t block_size;
     } space_to_depth_2d;
     struct {

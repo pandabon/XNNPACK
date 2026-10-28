@@ -461,6 +461,9 @@ xnn_init_f16_raddstoreexpminusmax_config();
 XNN_INTERNAL const struct xnn_raddstoreexpminusmax_config*
 xnn_init_f32_raddstoreexpminusmax_config(uint32_t flags);
 
+XNN_INTERNAL const struct xnn_layernorm_config* xnn_init_bf16_layernorm_config();
+XNN_INTERNAL const struct xnn_layernorm_config* xnn_init_f32_layernorm_config();
+
 XNN_INTERNAL const struct xnn_argmaxpool_config*
 xnn_init_f32_argmaxpool_config();
 

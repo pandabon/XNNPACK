@@ -534,6 +534,7 @@ SET(OPERATOR_SRCS
   src/operators/deconvolution-nhwc.c
   src/operators/dynamic-fully-connected-nc.c
   src/operators/fully-connected-nc.c
+  src/operators/layer-norm-nc.c
   src/operators/max-pooling-nhwc.c
   src/operators/pack-lh.c
   src/operators/reduce-nd.c
@@ -568,6 +569,7 @@ SET(SUBGRAPH_SRCS
   src/subgraph/even-split.c
   src/subgraph/fully-connected-sparse.c
   src/subgraph/fully-connected.c
+  src/subgraph/layer-norm.c
   src/subgraph/max-pooling-2d.c
   src/subgraph/pack-lh.c
   src/subgraph/reshape-helpers.c
@@ -605,6 +607,7 @@ SET(XNNPACK_SRCS
   src/configs/gemm-config.c
   src/configs/ibilinear-chw-config.c
   src/configs/ibilinear-config.c
+  src/configs/layernorm-config.c
   src/configs/lut32norm-config.c
   src/configs/maxpool-config.c
   src/configs/pack-lh-config.c

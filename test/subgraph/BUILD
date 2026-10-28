@@ -116,6 +116,7 @@ xnnpack_unit_test(
 
 NO_YNNPACK = [
     "input_output",
+    "layer_norm",
     "rewrites",
     "static_resize_bilinear_2d",
 ]
@@ -139,6 +140,7 @@ NO_YNNPACK = [
     "depth_to_space_2d",
     "even_split",
     "input_output",
+    "layer_norm",
     "rewrites",
     "softmax",
     "space_to_depth_2d",

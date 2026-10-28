@@ -346,6 +346,15 @@ xnnpack_unit_test(
 )
 
 xnnpack_unit_test(
+    name = "layer_norm_nc_test",
+    srcs = [
+        "layer-norm-nc.cc",
+        "layer-norm-operator-tester.h",
+    ],
+    deps = OPERATOR_TEST_DEPS,
+)
+
+xnnpack_unit_test(
     name = "softmax_nc_test",
     srcs = [
         "softmax-nc.cc",

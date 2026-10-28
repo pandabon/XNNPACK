@@ -301,6 +301,14 @@ struct xnn_raddstoreexpminusmax_config {
   } init;
 };
 
+struct xnn_layernorm_config {
+  xnn_layernorm_ukernel_fn ukernel;
+  union {
+    xnn_init_f32_layernorm_params_fn f32;
+    xnn_init_bf16_layernorm_params_fn bf16;
+  } init;
+};
+
 struct xnn_argmaxpool_config {
   xnn_argmaxpool_unipass_ukernel_fn ukernel;
   // Number of elements in a tile for the first pass.

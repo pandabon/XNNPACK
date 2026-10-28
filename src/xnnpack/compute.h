@@ -1295,6 +1295,25 @@ struct floating_point_softmax_context {
 XNN_PRIVATE void xnn_compute_floating_point_softmax(
     struct floating_point_softmax_context* context, size_t batch_index);
 
+// Layer normalization of rows of n bytes. One call of the microkernel handles one row.
+struct layernorm_context {
+  size_t n;
+  const void* x;
+  size_t x_stride;
+  const void* scale;
+  const void* bias;
+  void* y;
+  size_t y_stride;
+  xnn_layernorm_ukernel_fn ukernel;
+  union {
+    struct xnn_f32_layernorm_params f32;
+    struct xnn_bf16_layernorm_params bf16;
+  } params;
+};
+
+XNN_PRIVATE void xnn_compute_layernorm(struct layernorm_context* context,
+                                       size_t batch_index);
+
 struct rope_context {
   size_t scaled_channels;
   size_t batch_stride;

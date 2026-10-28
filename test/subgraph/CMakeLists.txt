@@ -50,6 +50,7 @@ IF(XNNPACK_BUILD_LIBRARY)
       depthwise-convolution-2d
       even-split
       fully-connected
+      layer-norm
       max-pooling-2d
       rewrites
       rope

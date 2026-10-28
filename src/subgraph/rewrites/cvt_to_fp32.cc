@@ -405,6 +405,12 @@ OpAction GetOpActionBf16(const xnn_subgraph_t subgraph, const xnn_node& node) {
       }
       break;
     }
+    case xnn_node_type_layer_norm:
+      // The layer norm microkernels read bf16 and compute in f32; the scalar kernel makes this config always valid.
+      if (IsValid(xnn_init_bf16_layernorm_config())) {
+        return OpAction::kTransparent;
+      }
+      break;
     case xnn_node_type_static_reduce_max:
       if (IsValid(xnn_init_bf16_rmax_config())) {
         return OpAction::kTransparent;

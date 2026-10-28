@@ -75,6 +75,7 @@ xnnpack_cc_library(
         "gemm-config.c",
         "ibilinear-chw-config.c",
         "ibilinear-config.c",
+        "layernorm-config.c",
         "lut32norm-config.c",
         "maxpool-config.c",
         "pack-lh-config.c",

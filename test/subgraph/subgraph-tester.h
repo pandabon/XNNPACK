@@ -512,6 +512,10 @@ class SubgraphTester {
                             uint32_t input_id, uint32_t output_id,
                             uint32_t flags = 0);
 
+  SubgraphTester& AddLayerNorm(float epsilon, uint32_t input_id,
+                               uint32_t scale_id, uint32_t bias_id,
+                               uint32_t output_id, uint32_t flags = 0);
+
   SubgraphTester& AddSoftmax(uint32_t input_id, uint32_t output_id,
                              uint32_t flags = 0);
 

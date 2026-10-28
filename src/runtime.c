@@ -508,6 +508,7 @@ void propagate_rank(
       case xnn_node_type_unary_elementwise:
       case xnn_node_type_convert:
       case xnn_node_type_pack_lh:
+      case xnn_node_type_layer_norm:
       case xnn_node_type_softmax:
       case xnn_node_type_static_transpose:
       case xnn_node_type_static_constant_pad:

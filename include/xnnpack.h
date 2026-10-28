@@ -2151,6 +2151,30 @@ XNN_DEPRECATED enum xnn_status xnn_define_sigmoid(
   uint32_t output_id,
   uint32_t flags);
 
+/// Define a Layer Normalization Node and add it to a Subgraph.
+///
+/// Normalizes each row of the last dimension: y = (x - mean) / sqrt(var + epsilon) * scale + bias, with the biased
+/// variance of the row. Statistics are computed in f32.
+///
+/// @param subgraph - a Subgraph object that will own the created Node.
+/// @param epsilon - a small positive value added to the variance. Must be finite and non-negative.
+/// @param input_id - Value ID for the input tensor. The input tensor must be defined in the @a subgraph, have at
+///                   least one dimension, and be of type fp32 or bf16.
+/// @param scale_id - Value ID for the scale (gamma) vector: a static, one-dimensional tensor of the input's type
+///                   with as many elements as the last dimension of the input.
+/// @param bias_id - Value ID for the bias (beta) vector: same requirements as the scale.
+/// @param output_id - Value ID for the output tensor. The output tensor must be defined in the @a subgraph, and its
+///                    shape and type must match the input tensor.
+/// @param flags - binary features of the Layer Normalization Node. No supported flags are currently defined.
+enum xnn_status xnn_define_layer_norm(
+  xnn_subgraph_t subgraph,
+  float epsilon,
+  uint32_t input_id,
+  uint32_t scale_id,
+  uint32_t bias_id,
+  uint32_t output_id,
+  uint32_t flags);
+
 /// Define a SoftMax Node and add it to a Subgraph.
 ///
 /// @param subgraph - a Subgraph object that will own the created Node.
@@ -4949,6 +4973,51 @@ enum xnn_status xnn_run_slice_nd_x32(
   void* output,
   uint32_t flags,
   pthreadpool_t threadpool);
+
+// Layer normalization over the channels (last) dimension, one row at a time:
+//   y = (x - mean) / sqrt(var + epsilon) * scale + bias, with the biased variance of the row.
+// scale and bias hold `channels` elements of the operator's datatype and are copied by the create function.
+// Statistics are computed in f32, also for bf16, which rounds to nearest even once on store.
+// The output may alias the input.
+enum xnn_status xnn_create_layer_norm_nc_bf16(
+  size_t channels,
+  float epsilon,
+  const void* scale,
+  const void* bias,
+  uint32_t flags,
+  xnn_operator_t* layer_norm_op_out);
+
+enum xnn_status xnn_reshape_layer_norm_nc_bf16(
+  xnn_operator_t layer_norm_op,
+  size_t batch_size,
+  size_t input_stride,
+  size_t output_stride,
+  pthreadpool_t threadpool);
+
+enum xnn_status xnn_setup_layer_norm_nc_bf16(
+  xnn_operator_t layer_norm_op,
+  const void* input,
+  void* output);
+
+enum xnn_status xnn_create_layer_norm_nc_f32(
+  size_t channels,
+  float epsilon,
+  const float* scale,
+  const float* bias,
+  uint32_t flags,
+  xnn_operator_t* layer_norm_op_out);
+
+enum xnn_status xnn_reshape_layer_norm_nc_f32(
+  xnn_operator_t layer_norm_op,
+  size_t batch_size,
+  size_t input_stride,
+  size_t output_stride,
+  pthreadpool_t threadpool);
+
+enum xnn_status xnn_setup_layer_norm_nc_f32(
+  xnn_operator_t layer_norm_op,
+  const float* input,
+  float* output);
 
 enum xnn_status xnn_create_softmax_nc_f16(
   uint32_t flags,

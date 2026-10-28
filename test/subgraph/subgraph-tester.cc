@@ -756,6 +756,17 @@ SubgraphTester& SubgraphTester::AddReduce(
   return *this;
 }
 
+SubgraphTester& SubgraphTester::AddLayerNorm(float epsilon, uint32_t input_id,
+                                             uint32_t scale_id,
+                                             uint32_t bias_id,
+                                             uint32_t output_id,
+                                             uint32_t flags) {
+  const xnn_status status = xnn_define_layer_norm(
+      subgraph_.get(), epsilon, input_id, scale_id, bias_id, output_id, flags);
+  EXPECT_EQ(status, xnn_status_success);
+  return *this;
+}
+
 SubgraphTester& SubgraphTester::AddSoftmax(uint32_t input_id,
                                            uint32_t output_id, uint32_t flags) {
   const xnn_status status =

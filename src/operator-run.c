@@ -1835,6 +1835,15 @@ XNN_NO_SANITIZE_FUNCTION void xnn_compute_floating_point_softmax(
   context->vmulc_ukernel(n, y, &y_scale, y, &context->minmax_params);
 }
 
+XNN_NO_SANITIZE_FUNCTION void xnn_compute_layernorm(
+    struct layernorm_context* restrict context, size_t batch_index) {
+  const void* x =
+      (const void*)((uintptr_t)context->x + context->x_stride * batch_index);
+  void* y = (void*)((uintptr_t)context->y + context->y_stride * batch_index);
+  context->ukernel(context->n, x, context->scale, context->bias, y,
+                   &context->params);
+}
+
 XNN_NO_SANITIZE_FUNCTION void xnn_compute_vmulcaddc(
     struct vmulcaddc_context* restrict context, size_t batch_start,
     size_t batch_size) {

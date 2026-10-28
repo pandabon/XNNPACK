@@ -3400,6 +3400,7 @@ static void propagate_constants(xnn_subgraph_t subgraph, uint32_t node_id) {
     case xnn_node_type_global_sum_pooling_1d:
     case xnn_node_type_global_sum_pooling_2d:
     case xnn_node_type_invalid:
+    case xnn_node_type_layer_norm:
     case xnn_node_type_max_pooling_2d:
     case xnn_node_type_pack_lh:
     case xnn_node_type_rope:

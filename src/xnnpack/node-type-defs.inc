@@ -31,6 +31,7 @@ XNN_ENUM_ITEM(xnn_node_type_global_average_pooling_2d,
               "Global Average Pooling 2D")
 XNN_ENUM_ITEM(xnn_node_type_global_sum_pooling_1d, "Global Sum Pooling 1D")
 XNN_ENUM_ITEM(xnn_node_type_global_sum_pooling_2d, "Global Sum Pooling 2D")
+XNN_ENUM_ITEM(xnn_node_type_layer_norm, "Layer Norm")
 XNN_ENUM_ITEM(xnn_node_type_max_pooling_2d, "Max Pooling 2D")
 XNN_ENUM_ITEM(xnn_node_type_pack_lh, "Pack LH")
 XNN_ENUM_ITEM(xnn_node_type_rope, "RoPE")

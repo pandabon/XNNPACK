@@ -321,6 +321,7 @@ struct xnn_operator {
       const struct xnn_reduce_config* reduce_config2;
       const struct xnn_unary_elementwise_config* cvt_config;
     };  // For softmax, convert and reduce operators.
+    const struct xnn_layernorm_config* layernorm_config;
     const struct xnn_maxpool_config* maxpool_config;
     const struct xnn_unpool_config* unpool_config;
     const struct xnn_zip_config* zip_config;
@@ -361,6 +362,7 @@ struct xnn_operator {
     struct spmm_context spmm;
     struct subconv_context subconv;
     struct transpose_context transpose;
+    struct layernorm_context layernorm;
     struct floating_point_softmax_context floating_point_softmax;
     struct u8_softmax_context u8_softmax;
     struct bf16_qd8_convert_context bf16_qd8_convert;
