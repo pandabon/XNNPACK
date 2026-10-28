@@ -102,6 +102,11 @@ tools/xngen src/x32-transposec/rvv.c.in -D SIZE=32 VLEN=512 -o src/x32-transpose
 tools/xngen src/x32-transposec/rvv.c.in -D SIZE=32 VLEN=256 -o src/x32-transposec/gen/x32-transposec-8x8-rvv.c &
 tools/xngen src/x32-transposec/rvv.c.in -D SIZE=32 VLEN=128 -o src/x32-transposec/gen/x32-transposec-4x4-rvv.c &
 
+tools/xngen src/x32-transposec/rvv.c.in -D SIZE=16 VLEN=1024 -o src/x16-transposec/gen/x16-transposec-64x8-rvv.c &
+tools/xngen src/x32-transposec/rvv.c.in -D SIZE=16 VLEN=512 -o src/x16-transposec/gen/x16-transposec-32x8-rvv.c &
+tools/xngen src/x32-transposec/rvv.c.in -D SIZE=16 VLEN=256 -o src/x16-transposec/gen/x16-transposec-16x8-rvv.c &
+tools/xngen src/x32-transposec/rvv.c.in -D SIZE=16 VLEN=128 -o src/x16-transposec/gen/x16-transposec-8x8-rvv.c &
+
 tools/xngen src/x32-transposec/rvv-u.c.in -D LMUL=1 -o src/x32-transposec/gen/x32-transposec-8xv1-rvv.c &
 tools/xngen src/x32-transposec/rvv-u.c.in -D LMUL=2 -o src/x32-transposec/gen/x32-transposec-8xv2-rvv.c &
 tools/xngen src/x32-transposec/rvv-u.c.in -D LMUL=4 -o src/x32-transposec/gen/x32-transposec-8xv4-rvv.c &

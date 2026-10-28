@@ -3,7 +3,7 @@
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree.
 $import math
-$assert SIZE in [32]
+$assert SIZE in [16, 32]
 $assert VLEN in [64, 128, 256, 512, 1024]
 $LMUL = 1
 $TILE_WIDTH = int(min(VLEN/SIZE, 8))
@@ -66,8 +66,8 @@ void xnn_x${SIZE}_transposec_ukernel__${TILE_HEIGHT}x${TILE_WIDTH}_rvv(
               break;
             }\n
           case 1: {
-            vuint32m${LMUL}_t v_d0 = __riscv_vlse32_v_u32m${LMUL}(i0, input_stride, vl);
-            __riscv_vse32_v_u32m${LMUL}(o0, v_d0, vl);
+            vuint${SIZE}m${LMUL}_t v_d0 = __riscv_vlse${SIZE}_v_u${SIZE}m${LMUL}(i0, input_stride, vl);
+            __riscv_vse${SIZE}_v_u${SIZE}m${LMUL}(o0, v_d0, vl);
             break;
           }
 
@@ -103,8 +103,8 @@ void xnn_x${SIZE}_transposec_ukernel__${TILE_HEIGHT}x${TILE_WIDTH}_rvv(
             }
 
           case 1: {
-            vuint32m${LMUL}_t v_d0 = __riscv_vlse32_v_u32m${LMUL}(i, input_stride, vl);
-            __riscv_vse32_v_u32m${LMUL}(o0, v_d0, vl);
+            vuint${SIZE}m${LMUL}_t v_d0 = __riscv_vlse${SIZE}_v_u${SIZE}m${LMUL}(i, input_stride, vl);
+            __riscv_vse${SIZE}_v_u${SIZE}m${LMUL}(o0, v_d0, vl);
             break;
           }
 

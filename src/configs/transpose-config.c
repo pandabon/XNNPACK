@@ -150,7 +150,17 @@ static void init_transpose_config(void) {
     transpose_config.copy = XNN_INIT_COPY_UKERNEL(xnn_xx_copy_ukernel__scalar_memcpy);
     transpose_config.x8.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x8_transposec_ukernel__2x4_scalar_int);
     transpose_config.x8.tile_size = 32;
-    transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__2x4_scalar_int);
+    if (hardware_config->vlenb >= 128) {
+      transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__64x8_rvv);
+    } else if (hardware_config->vlenb == 64) {
+      transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__32x8_rvv);
+    } else if (hardware_config->vlenb == 32) {
+      transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__16x8_rvv);
+    } else if (hardware_config->vlenb == 16) {
+      transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__8x8_rvv);
+    } else {
+      transpose_config.x16.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x16_transposec_ukernel__2x4_scalar_int);
+    }
     transpose_config.x16.tile_size = 32;
     transpose_config.x24.const_size_ukernel = XNN_INIT_TRANSPOSEC_UKERNEL(xnn_x24_transposec_ukernel__1x2_scalar);
     transpose_config.x24.tile_size = 32;
