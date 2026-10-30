@@ -207,6 +207,7 @@ enum xnn_status xnn_subgraph_add_internal_values(xnn_subgraph_t subgraph,
 void xnn_node_clear(struct xnn_node* node) {
   assert(node != NULL);
   memset(node, 0, sizeof(struct xnn_node));
+  node->definition_id = XNN_INVALID_NODE_ID;
 }
 
 void xnn_value_clear(struct xnn_value* value) {
@@ -267,7 +268,9 @@ struct xnn_node* xnn_subgraph_new_node(xnn_subgraph_t subgraph) {
   if (xnn_subgraph_add_nodes(subgraph, 1) != xnn_status_success) {
     return NULL;
   }
-  return subgraph->nodes + subgraph->num_nodes - 1;
+  struct xnn_node* node = subgraph->nodes + subgraph->num_nodes - 1;
+  node->definition_id = subgraph->optimizing ? XNN_INVALID_NODE_ID : node->id;
+  return node;
 }
 
 enum xnn_status xnn_subgraph_reserve_nodes(xnn_subgraph_t subgraph,
@@ -2471,8 +2474,11 @@ static struct xnn_node* move_last_node_to(xnn_subgraph_t subgraph,
                                           uint32_t node_id) {
   assert(node_id < subgraph->num_nodes);
   struct xnn_node* node = &subgraph->nodes[node_id];
+  // The new node replaces the old one, so it takes over its definition ID.
+  const uint32_t definition_id = node->definition_id;
   *node = subgraph->nodes[--subgraph->num_nodes];
   node->id = node_id;
+  node->definition_id = definition_id;
   return node;
 }
 
@@ -4623,6 +4629,9 @@ enum xnn_status xnn_subgraph_optimize(xnn_subgraph_t subgraph,
     xnn_log_info("Trying to optimize subgraph with zero nodes, skipping.");
     return xnn_status_success;
   }
+
+  // From here on, new Nodes are created by XNNPACK rather than by the user.
+  subgraph->optimizing = true;
 
   XNN_RETURN_IF_ERROR(xnn_subgraph_pack_static_values_to_fp16(subgraph));
 

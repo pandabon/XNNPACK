@@ -695,6 +695,7 @@ enum xnn_status xnn_create_runtime_v4(
     runtime->opdata[i].type = node->type;
     runtime->opdata[i].flags = node->flags;
     runtime->opdata[i].id = node->id;
+    runtime->opdata[i].definition_id = node->definition_id;
     runtime->opdata[i].num_inputs = node->num_inputs;
     runtime->opdata[i].num_outputs = node->num_outputs;
     // Copy all inputs (not just num_inputs) to get all invalid ID (e.g. no bias).
@@ -1124,6 +1125,28 @@ enum xnn_status xnn_get_runtime_profiling_info(xnn_runtime_t runtime,
         }
       }
       break;
+    case xnn_profile_info_operator_node_id:
+    {
+      size_t num_valid_ops = 0;
+      for (size_t i = 0; i < runtime->num_ops; ++i) {
+        if (opdata[i].operator_objects[0] != NULL) {
+          num_valid_ops += 1;
+        }
+      }
+      required_size = num_valid_ops * sizeof(uint32_t);
+      if (param_value_size < required_size) {
+        *param_value_size_ret = required_size;
+        status = xnn_status_out_of_memory;
+      } else {
+        uint32_t* data = (uint32_t*) param_value;
+        for (size_t i = 0; i < runtime->num_ops; ++i) {
+          if (opdata[i].operator_objects[0] != NULL) {
+            *data++ = opdata[i].definition_id;
+          }
+        }
+      }
+      break;
+    }
     case xnn_profile_info_operator_timing:
     {
       size_t num_valid_ops = 0;

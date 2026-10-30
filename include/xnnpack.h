@@ -262,6 +262,9 @@ enum xnn_status xnn_delete_subgraph(
 
 #define XNN_INVALID_VALUE_ID UINT32_MAX
 
+/// Node ID reported for Nodes that were not created by an xnn_define_* call.
+#define XNN_INVALID_NODE_ID UINT32_MAX
+
 /// Type of elements in a Value object.
 enum xnn_datatype {
   /// Invalid data type. Valid Values never have this datatype.
@@ -2468,7 +2471,19 @@ enum xnn_profile_info {
   xnn_profile_info_operator_name,
   /// Returns a uint64_t[] with the runtimes of all operators in the same order as xnn_profile_info_operator_name.
   xnn_profile_info_operator_timing,
+  /// Returns a uint32_t[] with the ID of the Node each operator was created from, in the same order as
+  /// xnn_profile_info_operator_name. The ID is the 0-based position of the xnn_define_* call that defined the Node.
+  /// Unlike the Node's position in the optimized subgraph, it is not changed when XNNPACK removes, fuses or reorders
+  /// Nodes. A Node that XNNPACK replaces with an equivalent one (e.g. mean(square(x)) with mean_squared(x)) keeps its
+  /// ID, the replaced producer disappears and so does its ID from the list. Operators for Nodes that XNNPACK created
+  /// while optimizing (e.g. FP16 or packing conversions) report XNN_INVALID_NODE_ID.
+  xnn_profile_info_operator_node_id,
 };
+
+/// Returns the number of Nodes in the subgraph. Right after the xnn_define_* calls this is the number of Nodes defined
+/// so far, so the difference around one xnn_define_* call is the number of Nodes it created, whose IDs are
+/// xnn_profile_info_operator_node_id values.
+uint32_t xnn_subgraph_get_num_nodes(xnn_subgraph_t subgraph);
 
 /// Return profile information for all operators.
 ///

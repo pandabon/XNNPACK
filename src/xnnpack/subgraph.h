@@ -30,8 +30,6 @@
 #define XNN_MAX_INPUTS 5
 #define XNN_MAX_OUTPUTS 4
 
-#define XNN_INVALID_NODE_ID UINT32_MAX
-
 #define XNN_MAX_OPERATOR_OBJECTS 5
 
 /// Disable fusion of nodes in subgraph. Fusion is enabled by default, set this
@@ -302,6 +300,9 @@ struct xnn_node {
     enum xnn_datatype packed_input_datatype;
   };
   uint32_t id;
+  /// Position of the xnn_define_* call that created this Node, or XNN_INVALID_NODE_ID for Nodes XNNPACK inserted.
+  /// Unlike `id`, it is not changed by compaction or reordering of the subgraph.
+  uint32_t definition_id;
   /// Static parameters of the operator node.
   union {
     struct {
@@ -448,6 +449,7 @@ typedef struct timespec xnn_timestamp;
 struct xnn_operator_data {
   enum xnn_node_type type;
   uint32_t id;
+  uint32_t definition_id;
   xnn_operator_t operator_objects[XNN_MAX_OPERATOR_OBJECTS];
   xnn_reshape_operator_fn reshape;
   xnn_setup_operator_fn setup;
@@ -503,6 +505,10 @@ struct xnn_subgraph {
   uint32_t num_reserved_nodes;
   uint32_t num_nodes;
   struct xnn_node* nodes;
+
+  /// Set when optimization starts. Nodes created after that are not given a
+  /// definition ID.
+  bool optimizing;
 };
 
 /// Runtime is a combination of an execution plan for subgraph Nodes and a
@@ -559,7 +565,6 @@ uint32_t xnn_subgraph_get_value_flags(xnn_subgraph_t subgraph,
 enum xnn_datatype xnn_subgraph_get_value_datatype(xnn_subgraph_t subgraph,
                                                   uint32_t value_id);
 uint32_t xnn_subgraph_get_num_external_values(xnn_subgraph_t subgraph);
-uint32_t xnn_subgraph_get_num_nodes(xnn_subgraph_t subgraph);
 uint32_t xnn_subgraph_get_num_values(xnn_subgraph_t subgraph);
 
 // Get size of the tensor in bytes (based on dimensions of tensor).
