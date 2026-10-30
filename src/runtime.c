@@ -1028,6 +1028,15 @@ static xnn_timestamp xnn_read_timer() {
     xnn_log_error("QueryPerformanceCounter failed: error code %u", GetLastError());
     memset(&timestamp, 0, sizeof(timestamp));
   }
+#elif defined(XNN_TIMER_MCYCLE_HZ)
+  // Bare-metal RISC-V in machine mode: the OS clock is too coarse for per-operator
+  // timings, so the core's cycle counter is the time source. XNN_TIMER_MCYCLE_HZ is
+  // the core clock in Hz.
+  uint64_t cycles;
+  __asm__ volatile("csrr %0, mcycle" : "=r"(cycles));
+  const uint64_t hz = (uint64_t) XNN_TIMER_MCYCLE_HZ;
+  timestamp.tv_sec = (time_t) (cycles / hz);
+  timestamp.tv_nsec = (long) ((cycles % hz) * UINT64_C(1000000000) / hz);
 #else
   int res = clock_gettime(CLOCK_MONOTONIC, &timestamp);
   if (res != 0) {
