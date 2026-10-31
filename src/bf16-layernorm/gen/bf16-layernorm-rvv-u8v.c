@@ -47,6 +47,10 @@
 #include "src/xnnpack/math.h"
 #include "src/xnnpack/microparams.h"
 
+#ifdef XNN_RVV_ORDERED_FSUM  // test aid: fixes the summation order, which vfredusum leaves free
+#define __riscv_vfredusum_vs_f32m8_f32m1 __riscv_vfredosum_vs_f32m8_f32m1
+#endif
+
 // bf16 -> f32: zero-extend, shift left by 16, reinterpret.
 static XNN_INLINE vfloat32m8_t load_f32(const xnn_bfloat16* p, size_t vl) {
   const vuint16m4_t vh = __riscv_vle16_v_u16m4((const uint16_t*) p, vl);

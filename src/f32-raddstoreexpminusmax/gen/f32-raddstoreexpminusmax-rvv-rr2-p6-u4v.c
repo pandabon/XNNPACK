@@ -139,5 +139,9 @@ void xnn_f32_raddstoreexpminusmax_ukernel__rvv_rr2_p6_u4v(
   } while(avl > 0);
 
   vfloat32m1_t v0 = __riscv_vfmv_s_f_f32m1(0.0f, 1);
+#ifdef XNN_RVV_ORDERED_FSUM  // test aid: fixes the summation order, which vfredusum leaves free
+  *sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredosum_vs_f32m4_f32m1(vsum, v0, n));
+#else
   *sum = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(vsum, v0, n));
+#endif
 }
