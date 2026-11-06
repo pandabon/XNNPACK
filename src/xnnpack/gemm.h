@@ -41,6 +41,21 @@ DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_f32_gemm_minmax_ukernel_5x4v__rvvzvfbfa)
 DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_f32_gemm_minmax_ukernel_7x4v__rvvzvfbfa)
+
+// bf16 activations x fp8 (OFP8 E4M3) weights with per-output-channel f32 scales -> f32. The weights `w` are packed per
+// tile of 32 columns as float bias[32]; uint8 q[K][32]; float scale[32] (see src/bf16-qf8w-gemm/MRxNRv-rvvzvfofp8.c.in).
+#define DECLARE_BF16_QF8W_F32_GEMM_MINMAX_UKERNEL_FUNCTION(fn_name)           \
+  void fn_name(size_t mr, size_t nc, size_t kc, const xnn_bfloat16* a,        \
+               size_t a_stride, const void* w, float* c, size_t cm_stride,    \
+               size_t cn_stride, const struct xnn_f32_minmax_params* params);
+
+DECLARE_BF16_QF8W_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_qf8w_f32_gemm_minmax_ukernel_1x4v__rvvzvfofp8)
+DECLARE_BF16_QF8W_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_qf8w_f32_gemm_minmax_ukernel_5x4v__rvvzvfofp8)
+DECLARE_BF16_QF8W_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
+    xnn_bf16_qf8w_f32_gemm_minmax_ukernel_7x4v__rvvzvfofp8)
+
 DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(
     xnn_bf16_f32_gemm_minmax_ukernel_1x16c2__asm_amd64_avx512bf16_broadcast)
 DECLARE_BF16_F32_GEMM_MINMAX_UKERNEL_FUNCTION(

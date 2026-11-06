@@ -775,6 +775,14 @@ XNNPACK_PARAMS_FOR_ARCH = {
             "-mabi=lp64d",
         ],
     ),
+    # fp8-weight kernels: same opt-in as Zvfbfa (they need Zvfbfa + Zvfofp8min); the fp8 convert is inline .insn.
+    "rvvzvfofp8": _create_params(
+        cond = "//:riscv_zvfbfa_enabled",
+        copts = [
+            "-march=rv64gcv_zfh_zvfbfmin",
+            "-mabi=lp64d",
+        ],
+    ),
 
     # Hexagon.
     "hexagon": _create_params(
